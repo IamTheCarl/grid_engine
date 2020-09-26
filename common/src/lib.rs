@@ -1,0 +1,3 @@
+#![warn(missing_docs)]
+
+pub mod scheduler;
