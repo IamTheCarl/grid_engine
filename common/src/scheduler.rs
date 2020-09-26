@@ -204,7 +204,6 @@ impl Scheduler {
 
                 // Fill up the queue with new events.
                 for event in us.event_rx.try_iter() {
-                    println!("Add Event");
                     us.priority_queue.push(cmp::Reverse(event));
                 }
 
@@ -219,7 +218,6 @@ impl Scheduler {
 
                 if !add_events(self) {
                     // Nothing was added. Time to break out.
-                    println!("Break.");
                     break;
                 }
             }
@@ -236,7 +234,10 @@ impl Scheduler {
 
         let elapsed = now.elapsed();
         match elapsed {
-            Ok(elapsed) => elapsed,
+            Ok(elapsed) => {
+                // Gotta do this weirdness because we'll get an underflow error if we go negative.
+                delta - cmp::min(elapsed, delta)
+            }
             Err(error) => {
                 log::warn!("Failed to get elapsed time while processing tick. Cause: {}", error);
                 // If we don't know how long we waited, then just wait the full time.
@@ -457,5 +458,29 @@ mod test_scheduler {
 
         // Now check that they ran in the right order.
         assert_eq!(&numbers[..], [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn overtime() {
+        let mut scheduler = Scheduler::new(1);
+        scheduler.schedule_event(Event::new(scheduler.now(), |_p| {
+            std::thread::sleep(Duration::from_secs(2));
+        })).unwrap();
+
+        let sleep_time = scheduler.tick(Duration::from_secs(1));
+
+        assert_eq!(sleep_time, Duration::from_secs(0));
+    }
+
+    #[test]
+    fn use_half_time() {
+        let mut scheduler = Scheduler::new(1);
+        scheduler.schedule_event(Event::new(scheduler.now(), |_p| {
+            std::thread::sleep(Duration::from_secs(1));
+        })).unwrap();
+
+        let sleep_time = scheduler.tick(Duration::from_secs(2));
+
+        assert!(Duration::from_secs(1) - sleep_time < Duration::from_millis(1));
     }
 }
