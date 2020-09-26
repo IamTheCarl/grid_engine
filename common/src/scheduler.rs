@@ -1,4 +1,3 @@
-
 //! The core scheduler for our engine.
 //! These are all features related to managing the engine's time. You schedule
 //! events and then wait for the time they should be processed.
@@ -6,14 +5,7 @@
 use log;
 use std::time::{Duration, SystemTime};
 
-use std::{
-    collections::BinaryHeap,
-    error,
-    fmt,
-    sync::mpsc,
-    ops,
-    cmp,
-};
+use std::{cmp, collections::BinaryHeap, error, fmt, ops, sync::mpsc};
 
 use threadpool::ThreadPool;
 
@@ -149,7 +141,13 @@ impl Scheduler {
     /// used equal the number of threads the hardware natively supports.
     pub fn new(num_threads: usize) -> Scheduler {
         let (event_tx, event_rx) = mpsc::channel();
-        Scheduler { priority_queue: BinaryHeap::new(), event_tx, event_rx, current_time: Time::from_ms(0), thread_pool: ThreadPool::new(num_threads) }
+        Scheduler {
+            priority_queue: BinaryHeap::new(),
+            event_tx,
+            event_rx,
+            current_time: Time::from_ms(0),
+            thread_pool: ThreadPool::new(num_threads),
+        }
     }
 
     /// Get the current time of the simulation.
@@ -181,10 +179,7 @@ impl Scheduler {
 
                         // TODO creating a new one of these may not be such a good idea for performance.
                         // We may need to implement our own threadpool to really do this efficiently.
-                        let proxy = SchedulerProxy {
-                            event_tx: self.event_tx.clone(),
-                            current_time: next.time()
-                        };
+                        let proxy = SchedulerProxy { event_tx: self.event_tx.clone(), current_time: next.time() };
 
                         self.thread_pool.execute(move || {
                             next.run_callback(&proxy);
@@ -204,10 +199,9 @@ impl Scheduler {
                 }
             }
 
-
             fn add_events(us: &mut Scheduler) -> bool {
                 let event_count = us.priority_queue.len();
-            
+
                 // Fill up the queue with new events.
                 for event in us.event_rx.try_iter() {
                     println!("Add Event");
@@ -230,7 +224,6 @@ impl Scheduler {
                 }
             }
         }
-
 
         // Make sure everything is done.
         self.thread_pool.join();
@@ -265,8 +258,7 @@ impl Scheduler {
 #[inline]
 fn schedule_event_internal(current_time: Time, event_tx: &mpsc::Sender<Event>, event: Event) -> Result<(), SchedulerError> {
     if event.time() >= current_time {
-        event_tx.send(event)
-            .expect("Scheduler receiver was disposed too early.");
+        event_tx.send(event).expect("Scheduler receiver was disposed too early.");
         Ok(())
     } else {
         Err(SchedulerError::ScheduledInPast)
@@ -360,10 +352,8 @@ mod test_scheduler {
             match error {
                 SchedulerError::ScheduledInPast => {
                     // This is correct. No panic. You passed the test.
-                },
-                _ => {
-                    panic!("Wrong error type.")
                 }
+                _ => panic!("Wrong error type."),
             }
         } else {
             panic!("Didn't fail when we should have.");
@@ -389,24 +379,32 @@ mod test_scheduler {
         let (tx, rx) = mpsc::channel();
 
         let tx_copy = tx.clone();
-        scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(1), move |_p| {
-            tx_copy.send(1).unwrap();
-        })).unwrap();
+        scheduler
+            .schedule_event(Event::new(scheduler.now() + Duration::from_secs(1), move |_p| {
+                tx_copy.send(1).unwrap();
+            }))
+            .unwrap();
 
         let tx_copy = tx.clone();
-        scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(2), move |_p| {
-            tx_copy.send(2).unwrap();
-        })).unwrap();
+        scheduler
+            .schedule_event(Event::new(scheduler.now() + Duration::from_secs(2), move |_p| {
+                tx_copy.send(2).unwrap();
+            }))
+            .unwrap();
 
         let tx_copy = tx.clone();
-        scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(3), move |_p| {
-            tx_copy.send(3).unwrap();
-        })).unwrap();
+        scheduler
+            .schedule_event(Event::new(scheduler.now() + Duration::from_secs(3), move |_p| {
+                tx_copy.send(3).unwrap();
+            }))
+            .unwrap();
 
         let tx_copy = tx.clone();
-        scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(4), move |_p| {
-            tx_copy.send(4).unwrap();
-        })).unwrap();
+        scheduler
+            .schedule_event(Event::new(scheduler.now() + Duration::from_secs(4), move |_p| {
+                tx_copy.send(4).unwrap();
+            }))
+            .unwrap();
 
         scheduler.tick(Duration::from_secs(5));
 
@@ -431,18 +429,23 @@ mod test_scheduler {
         let tx_copy_2 = tx.clone();
         let tx_copy_3 = tx.clone();
         let tx_copy_4 = tx.clone();
-        scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(1), move |p| {
-            tx_copy_1.send(1).unwrap();
-            p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |p| {
-                tx_copy_2.send(2).unwrap();
+        scheduler
+            .schedule_event(Event::new(scheduler.now() + Duration::from_secs(1), move |p| {
+                tx_copy_1.send(1).unwrap();
                 p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |p| {
-                    tx_copy_3.send(3).unwrap();
-                    p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |_p| {
-                        tx_copy_4.send(4).unwrap();
-                    })).unwrap();
-                })).unwrap();
-            })).unwrap();
-        })).unwrap();
+                    tx_copy_2.send(2).unwrap();
+                    p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |p| {
+                        tx_copy_3.send(3).unwrap();
+                        p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |_p| {
+                            tx_copy_4.send(4).unwrap();
+                        }))
+                        .unwrap();
+                    }))
+                    .unwrap();
+                }))
+                .unwrap();
+            }))
+            .unwrap();
 
         scheduler.tick(Duration::from_secs(5));
 
