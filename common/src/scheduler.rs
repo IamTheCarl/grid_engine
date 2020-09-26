@@ -183,7 +183,7 @@ impl Scheduler {
                         // We may need to implement our own threadpool to really do this efficiently.
                         let proxy = SchedulerProxy {
                             event_tx: self.event_tx.clone(),
-                            current_time: self.current_time
+                            current_time: next.time()
                         };
 
                         self.thread_pool.execute(move || {
@@ -204,16 +204,30 @@ impl Scheduler {
                 }
             }
 
-            let event_count = self.priority_queue.len();
+
+            fn add_events(us: &mut Scheduler) -> bool {
+                let event_count = us.priority_queue.len();
             
-            // Fill up the queue with new events.
-            for event in self.event_rx.try_iter() {
-                self.priority_queue.push(cmp::Reverse(event));
+                // Fill up the queue with new events.
+                for event in us.event_rx.try_iter() {
+                    println!("Add Event");
+                    us.priority_queue.push(cmp::Reverse(event));
+                }
+
+                event_count != us.priority_queue.len()
             }
 
-            if event_count == self.priority_queue.len() {
-                // Nothing was added. Time to break out.
-                break;
+            // Try and add more events if you can.
+            if !add_events(self) {
+                // Nothing was added, but the threads may try to add more while they're processing.
+                // Wait for them to finish and then try again.
+                self.thread_pool.join();
+
+                if !add_events(self) {
+                    // Nothing was added. Time to break out.
+                    println!("Break.");
+                    break;
+                }
             }
         }
 
@@ -275,6 +289,11 @@ impl SchedulerProxy {
         } else {
             Err(SchedulerError::ScheduledInPast)
         }
+    }
+
+    /// Returns the time that this proxy is valid for.
+    pub fn now(&self) -> Time {
+        self.current_time
     }
 }
 
@@ -392,6 +411,46 @@ mod test_scheduler {
         scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(4), move |_p| {
             println!("D");
             tx_copy.send(4).unwrap();
+        })).unwrap();
+
+        scheduler.tick(Duration::from_secs(5));
+
+        let mut numbers = Vec::new();
+
+        for number in rx.try_iter() {
+            numbers.push(number);
+        }
+
+        // Now check that they ran in the right order.
+        assert_eq!(&numbers[..], [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn cascading_events() {
+        // It is important we only use one thread here, so that we get a consistent output.
+        let mut scheduler = Scheduler::new(1);
+
+        let (tx, rx) = mpsc::channel();
+
+        let tx_copy_1 = tx.clone();
+        let tx_copy_2 = tx.clone();
+        let tx_copy_3 = tx.clone();
+        let tx_copy_4 = tx.clone();
+        scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(1), move |p| {
+            println!("A");
+            tx_copy_1.send(1).unwrap();
+            p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |p| {
+                println!("B");
+                tx_copy_2.send(2).unwrap();
+                p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |p| {
+                    println!("C");
+                    tx_copy_3.send(3).unwrap();
+                    p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |_p| {
+                        println!("D");
+                        tx_copy_4.send(4).unwrap();
+                    })).unwrap();
+                })).unwrap();
+            })).unwrap();
         })).unwrap();
 
         scheduler.tick(Duration::from_secs(5));
