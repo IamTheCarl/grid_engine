@@ -258,13 +258,18 @@ impl Scheduler {
     /// processing threads. It will however, always be processed before any other events
     /// that were meant to happen after it.
     pub fn schedule_event(&self, event: Event) -> Result<(), SchedulerError> {
-        if event.time() >= self.now() {
-            self.event_tx.send(event)
-                .expect("Scheduler receiver was disposed too early.");
-            Ok(())
-        } else {
-            Err(SchedulerError::ScheduledInPast)
-        }
+        schedule_event_internal(self.now(), &self.event_tx, event)
+    }
+}
+
+#[inline]
+fn schedule_event_internal(current_time: Time, event_tx: &mpsc::Sender<Event>, event: Event) -> Result<(), SchedulerError> {
+    if event.time() >= current_time {
+        event_tx.send(event)
+            .expect("Scheduler receiver was disposed too early.");
+        Ok(())
+    } else {
+        Err(SchedulerError::ScheduledInPast)
     }
 }
 
@@ -282,13 +287,7 @@ impl SchedulerProxy {
     /// processing threads. It will however, always be processed before any other events
     /// that were meant to happen after it.
     pub fn schedule_event(&self, event: Event) -> Result<(), SchedulerError> {
-        if event.time() >= self.current_time {
-            self.event_tx.send(event)
-                .expect("Scheduler receiver was disposed too early.");
-            Ok(())
-        } else {
-            Err(SchedulerError::ScheduledInPast)
-        }
+        schedule_event_internal(self.current_time, &self.event_tx, event)
     }
 
     /// Returns the time that this proxy is valid for.
@@ -391,25 +390,21 @@ mod test_scheduler {
 
         let tx_copy = tx.clone();
         scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(1), move |_p| {
-            println!("A");
             tx_copy.send(1).unwrap();
         })).unwrap();
 
         let tx_copy = tx.clone();
         scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(2), move |_p| {
-            println!("B");
             tx_copy.send(2).unwrap();
         })).unwrap();
 
         let tx_copy = tx.clone();
         scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(3), move |_p| {
-            println!("C");
             tx_copy.send(3).unwrap();
         })).unwrap();
 
         let tx_copy = tx.clone();
         scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(4), move |_p| {
-            println!("D");
             tx_copy.send(4).unwrap();
         })).unwrap();
 
@@ -437,16 +432,12 @@ mod test_scheduler {
         let tx_copy_3 = tx.clone();
         let tx_copy_4 = tx.clone();
         scheduler.schedule_event(Event::new(scheduler.now() + Duration::from_secs(1), move |p| {
-            println!("A");
             tx_copy_1.send(1).unwrap();
             p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |p| {
-                println!("B");
                 tx_copy_2.send(2).unwrap();
                 p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |p| {
-                    println!("C");
                     tx_copy_3.send(3).unwrap();
                     p.schedule_event(Event::new(p.now() + Duration::from_secs(1), move |_p| {
-                        println!("D");
                         tx_copy_4.send(4).unwrap();
                     })).unwrap();
                 })).unwrap();
