@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 log = "0.4.11"
-specs = { version = "0.16.1", features = ["specs-derive"] }
+slotmap = "0.4.0"
 fixed = "1.2.0"
 threadpool = "1.8.1"
 wasmtime = "0.20.0"
