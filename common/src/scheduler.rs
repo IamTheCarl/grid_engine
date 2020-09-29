@@ -2,61 +2,14 @@
 //! These are all features related to managing the engine's time. You schedule
 //! events and then wait for the time they should be processed.
 
+use crate::*;
+
 use log;
 use std::time::{Duration, SystemTime};
 
-use std::{cmp, collections::BinaryHeap, error, fmt, ops, sync::mpsc};
+use std::{cmp, collections::BinaryHeap, error, fmt, sync::mpsc};
 
 use threadpool::ThreadPool;
-
-/// Simulation time. Is tracked in milliseconds.
-/// Although you can operate on it using std::time::Duration, this struct only
-/// has precision in milliseconds. That means that if you set the microseconds
-/// or nanoseconds of the duration, they will be truncated from the final product.
-#[derive(Copy, Clone, PartialOrd, PartialEq, Ord, Eq)]
-pub struct Time {
-    time_ms: u64,
-}
-
-impl Time {
-    /// Construct a new time struct from the provided time in milliseconds.
-    pub fn from_ms(ms: u64) -> Time {
-        Time { time_ms: ms }
-    }
-
-    // TODO display formatters.
-    // TODO get delta by subtracting another
-}
-
-impl ops::Add<Duration> for Time {
-    type Output = Time;
-
-    fn add(mut self, other: Duration) -> Self {
-        self.time_ms += other.as_millis() as u64;
-        self
-    }
-}
-
-impl ops::Sub<Duration> for Time {
-    type Output = Time;
-
-    fn sub(mut self, other: Duration) -> Self {
-        self.time_ms -= other.as_millis() as u64;
-        self
-    }
-}
-
-impl ops::AddAssign<Duration> for Time {
-    fn add_assign(&mut self, delta: Duration) {
-        self.time_ms += delta.as_millis() as u64;
-    }
-}
-
-impl ops::SubAssign<Duration> for Time {
-    fn sub_assign(&mut self, delta: Duration) {
-        self.time_ms -= delta.as_millis() as u64;
-    }
-}
 
 /// A closure to be called when an event's time comes.
 /// It will be passed the scheduler that has called it so future or dependent events can be scheduled.
@@ -463,9 +416,11 @@ mod test_scheduler {
     #[test]
     fn overtime() {
         let mut scheduler = Scheduler::new(1);
-        scheduler.schedule_event(Event::new(scheduler.now(), |_p| {
-            std::thread::sleep(Duration::from_secs(2));
-        })).unwrap();
+        scheduler
+            .schedule_event(Event::new(scheduler.now(), |_p| {
+                std::thread::sleep(Duration::from_secs(2));
+            }))
+            .unwrap();
 
         let sleep_time = scheduler.tick(Duration::from_secs(1));
 
@@ -475,9 +430,11 @@ mod test_scheduler {
     #[test]
     fn use_half_time() {
         let mut scheduler = Scheduler::new(1);
-        scheduler.schedule_event(Event::new(scheduler.now(), |_p| {
-            std::thread::sleep(Duration::from_secs(1));
-        })).unwrap();
+        scheduler
+            .schedule_event(Event::new(scheduler.now(), |_p| {
+                std::thread::sleep(Duration::from_secs(1));
+            }))
+            .unwrap();
 
         let sleep_time = scheduler.tick(Duration::from_secs(2));
 
