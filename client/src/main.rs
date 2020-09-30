@@ -23,25 +23,40 @@ use num_traits::cast::FromPrimitive;
 
 fn main() {
 
-    use specs::{WorldExt, Builder};
+    // use specs::{WorldExt, Builder};
 
-    let (mut world, dispatcher) = common::world::create_world();
-    let mut dispatcher = dispatcher.build();
-    dispatcher.setup(&mut world);
+    // let (mut world, dispatcher) = common::world::create_world();
+    // let mut dispatcher = dispatcher.build();
+    // dispatcher.setup(&mut world);
 
-    use common::physics::*;
+    use common::*;
+    use physics::*;
+    use legion::*;
 
-    world.
-        create_entity()
-        .with(Positional::new(
-            PhysicsVec3::center_bottom_of_block(0, 0, 0).unwrap(),
-            PhysicsScalar::from_i64(0).unwrap()))
-        .with(Movable::new(PhysicsScalar::from_i64(0).unwrap(), PhysicsVec3::zeroed(), PhysicsScalar::from_i64(0).unwrap()))
-        .with(CylinderPhysicalForm::new(PhysicsScalar::from_f32(0.4).unwrap(), PhysicsScalar::from_i64(2).unwrap()))
-        .build();
+    let mut world = World::default();
+    let mut resources = Resources::default();
+    let mut schedule_builder = Schedule::builder();
+    physics::add_systems(&mut schedule_builder);
+    let mut schedule = schedule_builder.build();
 
-    dispatcher.dispatch(&world);
-    world.maintain();
+    world.push((Positional::new(PhysicsVec3::center_bottom_of_block(0, 0, 0).unwrap(), PhysicsScalar::from_i64(0).unwrap()),
+    Movable::new(PhysicsScalar::from_i64(0).unwrap(), PhysicsVec3::zeroed(), PhysicsScalar::from_i64(0).unwrap()),
+    CylinderPhysicalForm::new(PhysicsScalar::from_f32(0.4).unwrap(), PhysicsScalar::from_i64(2).unwrap())));
+
+    // TODO use a thread pool.
+    schedule.execute(&mut world, &mut resources);
+
+    // world.
+    //     create_entity()
+    //     .with(Positional::new(
+    //         PhysicsVec3::center_bottom_of_block(0, 0, 0).unwrap(),
+    //         PhysicsScalar::from_i64(0).unwrap()))
+    //     .with(Movable::new(PhysicsScalar::from_i64(0).unwrap(), PhysicsVec3::zeroed(), PhysicsScalar::from_i64(0).unwrap()))
+    //     .with(CylinderPhysicalForm::new(PhysicsScalar::from_f32(0.4).unwrap(), PhysicsScalar::from_i64(2).unwrap()))
+    //     .build();
+
+    // dispatcher.dispatch(&world);
+    // world.maintain();
 
     // env_logger::init();
     // let event_loop = EventLoop::new();

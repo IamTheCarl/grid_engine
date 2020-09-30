@@ -7,4 +7,3 @@ pub use time::*;
 
 pub mod physics;
 pub mod scheduler;
-pub mod world;

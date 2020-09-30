@@ -1,8 +1,7 @@
 //! Physics processing.
 
-use slotmap::*;
-use specs::{World, DispatcherBuilder, Component, ReadStorage, System, VecStorage, ParJoin, prelude::ParallelIterator};
 use num_traits::cast::FromPrimitive;
+use legion::*;
 
 /// The scalar type used for physics calculations.
 /// It's a fixed point type. Computations on an i7 using integers are still just a bit faster
@@ -82,15 +81,11 @@ impl VectorConstructors3D<PhysicsVec3> for PhysicsVec3 {
     }
 }
 
-// Used to access vectors stored in a complex shape.
-new_key_type! { struct VectorKey; }
-
 /// Give a physical location aspect to an entity.
 ///
 /// This does not give it the ability to move or have velocity or mass.
 /// It does not provide a physical shape.
-#[derive(Component, Debug)]
-#[storage(VecStorage)]
+#[derive(Debug)]
 pub struct Positional {
     position: PhysicsVec3,
     angle: PhysicsScalar,
@@ -112,8 +107,7 @@ impl Positional {
 ///
 /// Does not provide a physical shape, so it can't collide or interact
 /// with other entities until a PhysicalForm component is given.
-#[derive(Component, Debug)]
-#[storage(VecStorage)]
+#[derive(Debug)]
 pub struct Movable {
     mass: PhysicsScalar,
     angular_velocity: PhysicsScalar,
@@ -132,8 +126,7 @@ impl Movable {
 }
 
 /// Gives a simple cylinder physical form to an entity.
-#[derive(Component, Debug)]
-#[storage(VecStorage)]
+#[derive(Debug)]
 pub struct CylinderPhysicalForm {
     radius: PhysicsScalar,
     height: PhysicsScalar,
@@ -169,63 +162,31 @@ struct ComplexBoxShape {
 /// the same shape, you can expect to see a lot of memory used.
 /// 
 /// You should generally prefer the CylinderPhysicalForm.
-#[derive(Component, Debug)]
-#[storage(VecStorage)]
+#[derive(Debug)]
 pub struct ComplexPhysicalForm {
     shape: ComplexBoxShape,
     height: PhysicsScalar,
 }
 
-struct PhysicsMovement;
-
-impl<'a> System<'a> for PhysicsMovement {
-    type SystemData = (ReadStorage<'a, Positional>, ReadStorage<'a, Movable>);
-
-    fn run(&mut self, (position, movement): Self::SystemData) {
-        (&position, &movement)
-            .par_join()
-            .for_each(|(position, movement)| {
-            println!("PhysicsMovement: {:?}, {:?}", &position, &movement);
-        });
-    }
+#[system(par_for_each)]
+fn physics_movement(position: &mut Positional, movement: &Movable) {
+    println!("PhysicsMovement: {:?}, {:?}", position, movement);
 }
 
-struct CylinderCollisionChecking;
-
-impl<'a> System<'a> for CylinderCollisionChecking {
-    type SystemData = (ReadStorage<'a, CylinderPhysicalForm>, ReadStorage<'a, Positional>);
-
-    fn run(&mut self, (physical_form, position): Self::SystemData) {
-        (&physical_form, &position) 
-            .par_join()
-            .for_each(|(physical_form, position)| {
-            println!("CylinderCollisionChecking: {:?}, {:?}", &position, &physical_form);
-        });
-    }
+#[system(par_for_each)]
+fn cylinder_collision_checking(physical_form: &CylinderPhysicalForm, position: &Positional) {
+    println!("CylinderCollisionChecking: {:?}, {:?}", position, physical_form);
 }
 
-struct ComplexCollisionChecking;
-
-impl<'a> System<'a> for ComplexCollisionChecking {
-    type SystemData = (ReadStorage<'a, ComplexPhysicalForm>, ReadStorage<'a, Positional>);
-
-    fn run(&mut self, (physical_form, position): Self::SystemData) {
-        (&physical_form, &position)
-            .par_join()
-            .for_each(|(physical_form, position)| {
-            println!("ComplexCollisionChecking: {:?}, {:?}", &position, &physical_form);
-        });
-    }
+#[system(par_for_each)]
+fn complex_collision_checking(physical_form: &ComplexBoxShape, position: &Positional) {
+    println!("ComplexCollisionChecking: {:?}, {:?}", position, physical_form);
 }
 
 /// Add systems needed to use the physics engine to the dispatcher builder.
-pub fn add_systems<'a, 'b>(dispatcher: DispatcherBuilder<'a, 'b>) -> DispatcherBuilder<'a, 'b> {
-
-    // TODO this can likely be simplified a lot.
-    // Read the section on setup again.
-
-    dispatcher
-        .with(PhysicsMovement, "movement", &[])
-        .with(CylinderCollisionChecking, "cylinder_collision_checking", &["movement"])
-        .with(ComplexCollisionChecking, "complex_collision_checking", &["movement"])
+pub fn add_systems(schedule: &mut systems::Builder) {
+    schedule.add_system(physics_movement_system())
+        .flush()
+        .add_system(cylinder_collision_checking_system())
+        .add_system(complex_collision_checking_system());
 }

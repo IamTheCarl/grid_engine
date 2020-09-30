@@ -11,7 +11,7 @@ log = "0.4.11"
 nalgebra = "0.22.0"
 num-traits = "0.2.12"
 simba = { version = "0.2.0", features = ["partial_fixed_point_support"] }
-specs = { version = "0.16.1", features = ["specs-derive"] }
+legion = "0.3.1"
 slotmap = "0.4.0"
 rstar = "0.8.2"
 lazy_static = "1.4.0"
