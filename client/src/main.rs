@@ -8,6 +8,17 @@ use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+use argh::FromArgs;
+
+#[derive(FromArgs)]
+/// Grid Locked, the Game, finally becoming a reality this time I swear.
+struct Arguments {
+    /// the number of processing threads used to drive the engine.
+    /// When unspecified or set to 0, will automatically determine the ideal number of threads to use on your system.
+    #[argh(option, default = "0")]
+    num_threads: usize,
+}
+
 use num_traits::cast::FromPrimitive;
 
 // use vk_shader_macros::include_glsl;
@@ -22,6 +33,8 @@ use num_traits::cast::FromPrimitive;
 // };
 
 fn main() {
+
+    let arguments: Arguments = argh::from_env();
 
     // use specs::{WorldExt, Builder};
 
@@ -43,8 +56,8 @@ fn main() {
     Movable::new(PhysicsScalar::from_i64(0).unwrap(), PhysicsVec3::zeroed(), PhysicsScalar::from_i64(0).unwrap()),
     CylinderPhysicalForm::new(PhysicsScalar::from_f32(0.4).unwrap(), PhysicsScalar::from_i64(2).unwrap())));
 
-    // TODO use a thread pool.
-    schedule.execute(&mut world, &mut resources);
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(arguments.num_threads).build().unwrap();
+    schedule.execute_in_thread_pool(&mut world, &mut resources, &pool);
 
     // world.
     //     create_entity()
