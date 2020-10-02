@@ -65,9 +65,11 @@ fn trampoline() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     _ => {}
                 },
+                WindowEvent::Resized(new_size) => {
+                    client.on_resize(*new_size);
+                },
                 _ => {}
             },
-
             Event::RedrawRequested(_) => {
                 client.update();
                 client.render();
