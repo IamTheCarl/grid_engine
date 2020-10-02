@@ -3,7 +3,7 @@
 
 use futures::executor::block_on;
 use wgpu::*;
-use winit::{dpi, event::WindowEvent, window::Window};
+use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use legion::{Resources, Schedule, World};
 use rayon::{ThreadPool, ThreadPoolBuilder};
@@ -114,8 +114,21 @@ impl Client {
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
     }
 
-    pub fn process_event(&mut self, event: &WindowEvent) {
-        unimplemented!()
+    pub fn process_event(&mut self, event: &WindowEvent) -> Option<ControlFlow> {
+        match event {
+            WindowEvent::CloseRequested => Some(ControlFlow::Exit),
+            WindowEvent::KeyboardInput { input, .. } => match input {
+                KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
+                    Some(ControlFlow::Exit)
+                }
+                _ => None
+            },
+            WindowEvent::Resized(new_size) => {
+                self.on_resize(*new_size);
+                None
+            }
+            _ => None
+        }
     }
 
     pub fn update(&mut self) {

@@ -15,7 +15,7 @@ use native_dialog::{Dialog, MessageAlert, MessageType};
 
 use winit::{
     event::*,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -57,19 +57,12 @@ fn trampoline() -> Result<(), Box<dyn std::error::Error>> {
 
     event_loop.run(move |event, _, control_flow| {
         match event {
-            Event::WindowEvent { ref event, window_id } if window_id == window.id() => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput { input, .. } => match input {
-                    KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
-                        *control_flow = ControlFlow::Exit
-                    }
-                    _ => {}
-                },
-                WindowEvent::Resized(new_size) => {
-                    client.on_resize(*new_size);
-                },
-                _ => {}
-            },
+            Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
+                let result = client.process_event(event);
+                if let Some(new_flow) = result {
+                    *control_flow = new_flow;
+                }
+            }
             Event::RedrawRequested(_) => {
                 client.update();
                 client.render();
