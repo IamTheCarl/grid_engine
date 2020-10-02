@@ -11,6 +11,7 @@ common = { path = "../common" }
 jemallocator = "0.3.2"
 env_logger = "0.7.1"
 log = "0.4.11"
+native-dialog = "0.4.3"
 winit = "0.22.2"
 wgpu = "0.6.0"
 vk-shader-macros = "0.2.6"
@@ -20,6 +21,7 @@ num-traits = "0.2.12"
 legion = "0.3.1"
 rayon = "1.4.1"
 argh = "0.1.3"
+futures = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies.backend]
 package = "gfx-backend-metal"

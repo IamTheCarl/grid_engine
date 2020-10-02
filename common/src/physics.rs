@@ -1,7 +1,7 @@
 //! Physics processing.
 
-use num_traits::cast::FromPrimitive;
 use legion::*;
+use num_traits::cast::FromPrimitive;
 
 /// The scalar type used for physics calculations.
 /// It's a fixed point type. Computations on an i7 using integers are still just a bit faster
@@ -18,7 +18,6 @@ pub type PhysicsScalar = simba::scalar::FixedI50F14;
 
 /// used for quick and convenient construction of 3D vectors.
 pub trait VectorConstructors3D<T> {
-
     /// Return the vector but with all the components being set to zero.
     fn zeroed() -> T;
 
@@ -71,13 +70,17 @@ impl VectorConstructors3D<PhysicsVec3> for PhysicsVec3 {
     }
 
     fn center_of_block(x: i64, y: i64, z: i64) -> Option<Self> {
-        Some(PhysicsVec3::new(PhysicsScalar::from_i64(x)?, PhysicsScalar::from_i64(y)?, PhysicsScalar::from_i64(z)?)
-            + *BLOCK_CENTER_OFFSET)
+        Some(
+            PhysicsVec3::new(PhysicsScalar::from_i64(x)?, PhysicsScalar::from_i64(y)?, PhysicsScalar::from_i64(z)?)
+                + *BLOCK_CENTER_OFFSET,
+        )
     }
 
     fn center_bottom_of_block(x: i64, y: i64, z: i64) -> Option<Self> {
-        Some(PhysicsVec3::new(PhysicsScalar::from_i64(x)?, PhysicsScalar::from_i64(y)?, PhysicsScalar::from_i64(z)?)
-            + *BLOCK_CENTER_BOTTOM_OFFSET)
+        Some(
+            PhysicsVec3::new(PhysicsScalar::from_i64(x)?, PhysicsScalar::from_i64(y)?, PhysicsScalar::from_i64(z)?)
+                + *BLOCK_CENTER_BOTTOM_OFFSET,
+        )
     }
 }
 
@@ -95,10 +98,7 @@ impl Positional {
     /// Creates a new Positional component at the specified location with the
     /// specified angle.
     pub fn new(position: PhysicsVec3, angle: PhysicsScalar) -> Positional {
-        Positional {
-            position,
-            angle
-        }
+        Positional { position, angle }
     }
 }
 
@@ -117,12 +117,8 @@ pub struct Movable {
 impl Movable {
     /// Creates a new Movable component with the specified mass, velocity, and angular velocity.
     pub fn new(mass: PhysicsScalar, velocity: PhysicsVec3, angular_velocity: PhysicsScalar) -> Movable {
-        Movable {
-            mass,
-            velocity,
-            angular_velocity
-        }
-    }  
+        Movable { mass, velocity, angular_velocity }
+    }
 }
 
 /// Gives a simple cylinder physical form to an entity.
@@ -135,10 +131,7 @@ pub struct CylinderPhysicalForm {
 impl CylinderPhysicalForm {
     /// Creates a new cylinder physical shape for an entity.
     pub fn new(radius: PhysicsScalar, height: PhysicsScalar) -> CylinderPhysicalForm {
-        CylinderPhysicalForm {
-            radius,
-            height,
-        }
+        CylinderPhysicalForm { radius, height }
     }
 }
 
@@ -160,7 +153,7 @@ struct ComplexBoxShape {
 /// The shape is 2D and made of squares and rectangles. A new vector is
 /// allocated for every physical form, so if you make a lot of copies of
 /// the same shape, you can expect to see a lot of memory used.
-/// 
+///
 /// You should generally prefer the CylinderPhysicalForm.
 #[derive(Debug)]
 pub struct ComplexPhysicalForm {
@@ -185,7 +178,8 @@ fn complex_collision_checking(physical_form: &ComplexBoxShape, position: &Positi
 
 /// Add systems needed to use the physics engine to the dispatcher builder.
 pub fn add_systems(schedule: &mut systems::Builder) {
-    schedule.add_system(physics_movement_system())
+    schedule
+        .add_system(physics_movement_system())
         .flush()
         .add_system(cylinder_collision_checking_system())
         .add_system(complex_collision_checking_system());

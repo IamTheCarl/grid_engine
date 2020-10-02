@@ -1,4 +1,3 @@
-
 //! Utilities used for managing game time.
 
 use std::{ops, time::Duration};
