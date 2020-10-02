@@ -1,3 +1,6 @@
+// Copyright James Carl (C) 2020
+// AGPL-3.0-or-later
+
 //! The core scheduler for our engine.
 //! These are all features related to managing the engine's time. You schedule
 //! events and then wait for the time they should be processed.

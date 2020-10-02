@@ -1,8 +1,9 @@
 [package]
 name = "server"
 version = "0.1.0"
-authors = ["I am the Carl <jamescarl96@gmail.com>"]
+authors = ["James Carl <jamescarl96@gmail.com>"]
 edition = "2018"
+license = "AGPL"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

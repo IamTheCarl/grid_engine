@@ -1,3 +1,6 @@
+// Copyright James Carl (C) 2020
+// AGPL-3.0-or-later
+
 use futures::executor::block_on;
 use wgpu::*;
 use winit::{dpi, event::WindowEvent, window::Window};

@@ -1,3 +1,6 @@
+// Copyright James Carl (C) 2020
+// AGPL-3.0-or-later
+
 //! Physics processing.
 
 use legion::*;

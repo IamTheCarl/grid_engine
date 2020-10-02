@@ -1,3 +1,6 @@
+// Copyright James Carl (C) 2020
+// AGPL-3.0-or-later
+
 //! Client for Grid Locked engine
 
 #![warn(missing_docs)]
