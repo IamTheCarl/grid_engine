@@ -166,17 +166,17 @@ pub struct ComplexPhysicalForm {
 
 #[system(par_for_each)]
 fn physics_movement(position: &mut Positional, movement: &Movable) {
-    println!("PhysicsMovement: {:?}, {:?}", position, movement);
+    log::debug!("PhysicsMovement: {:?}, {:?}", position, movement);
 }
 
 #[system(par_for_each)]
 fn cylinder_collision_checking(physical_form: &CylinderPhysicalForm, position: &Positional) {
-    println!("CylinderCollisionChecking: {:?}, {:?}", position, physical_form);
+    log::debug!("CylinderCollisionChecking: {:?}, {:?}", position, physical_form);
 }
 
 #[system(par_for_each)]
 fn complex_collision_checking(physical_form: &ComplexBoxShape, position: &Positional) {
-    println!("ComplexCollisionChecking: {:?}, {:?}", position, physical_form);
+    log::debug!("ComplexCollisionChecking: {:?}, {:?}", position, physical_form);
 }
 
 /// Add systems needed to use the physics engine to the dispatcher builder.

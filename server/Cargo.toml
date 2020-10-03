@@ -8,4 +8,7 @@ license = "AGPL"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+common = { path = "../common" }
 jemallocator = "0.3.2"
+env_logger = "0.7.1"
+log = "0.4.11"

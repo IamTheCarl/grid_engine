@@ -45,6 +45,10 @@ fn main() {
 /// and displayed to the user.
 fn trampoline() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
+
+    log::info!("Welcome to Grid Engine!");
+    common::log_basic_system_info()?;
+
     let event_loop = EventLoop::new();
 
     // These are the only two things that can fail.
