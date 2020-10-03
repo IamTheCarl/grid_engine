@@ -3,6 +3,9 @@
 
 use futures::executor::block_on;
 use wgpu::*;
+use imgui::*;
+use imgui_wgpu::Renderer;
+use imgui_winit_support::WinitPlatform;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use legion::{Resources, Schedule, World};
@@ -27,12 +30,21 @@ struct Arguments {
 }
 
 pub struct Client {
+    // General graphics stuff.
+    window: Window,
     surface: Surface,
     device: Device,
     queue: Queue,
     sc_desc: SwapChainDescriptor,
     swap_chain: SwapChain,
     size: dpi::PhysicalSize<u32>,
+
+    // ImGui stuff.
+    winit_platform: WinitPlatform,
+    imgui_context: imgui::Context,
+    imgui_renderer: Renderer,
+    
+    // World simulation stuff.
     thread_pool: ThreadPool,
     worlds: Vec<(World, Schedule, Resources)>,
 }
@@ -56,7 +68,30 @@ impl Client {
             .await
     }
 
-    pub fn create_with_window(window: &Window) -> Result<Client, Box<dyn std::error::Error>> {
+    fn setup_imgui(window: &Window) -> Result<(WinitPlatform, imgui::Context), Box<dyn std::error::Error>> {
+        // Set up dear imgui
+        let mut imgui = imgui::Context::create();
+        let mut platform = WinitPlatform::init(&mut imgui);
+        platform.attach_window(imgui.io_mut(), &window, imgui_winit_support::HiDpiMode::Default);
+        imgui.set_ini_filename(None);
+
+        let scale_factor = window.scale_factor();
+        let font_size = (13.0 * scale_factor) as f32;
+        imgui.io_mut().font_global_scale = (1.0 / scale_factor) as f32;
+
+        imgui.fonts().add_font(&[FontSource::DefaultFontData {
+            config: Some(imgui::FontConfig {
+                oversample_h: 1,
+                pixel_snap_h: true,
+                size_pixels: font_size,
+                ..Default::default()
+            }),
+        }]);
+
+        Ok((platform, imgui))
+    }
+
+    pub fn create_with_window(window: Window) -> Result<Client, Box<dyn std::error::Error>> {
         let size = window.inner_size();
 
         // The instance is a handle to the graphics driver.
@@ -64,13 +99,13 @@ impl Client {
         let instance = Instance::new(BackendBit::PRIMARY);
 
         // Is unsafe because it depends on the window returning a valid descriptor.
-        let surface = unsafe { instance.create_surface(window) };
+        let surface = unsafe { instance.create_surface(&window) };
 
         // Grab the graphics adapter (the GPU outputting to the display)
         let adapter = block_on(Self::request_adapter(&instance, &surface)).ok_or("Failed to find graphics adapter.")?;
 
         // Get the actual GPU now.
-        let (device, queue) = block_on(Self::request_device(&adapter))?;
+        let (device, mut queue) = block_on(Self::request_device(&adapter))?;
 
         // Swap chain basically manages our double buffer.
         let sc_desc = SwapChainDescriptor {
@@ -78,9 +113,12 @@ impl Client {
             format: TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
-            present_mode: PresentMode::Mailbox, // TODO let the user pick 
+            present_mode: PresentMode::Mailbox, // TODO let the user pick
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
+
+        let (winit_platform, mut imgui_context) = Self::setup_imgui(&window)?;
+        let imgui_renderer = Renderer::new(&mut imgui_context, &device, &mut queue, sc_desc.format);
 
         // Grab arguments provided from the command line.
         let arguments: Arguments = argh::from_env();
@@ -104,62 +142,111 @@ impl Client {
         let mut worlds = Vec::new();
         worlds.push((world, schedule, resources));
 
-        Ok(Client { surface, device, queue, sc_desc, swap_chain, size, worlds, thread_pool })
+        Ok(Client { window, surface, device, queue, sc_desc, swap_chain, size, winit_platform, imgui_context, imgui_renderer, worlds, thread_pool })
     }
 
-    pub fn on_resize(&mut self, new_size: dpi::PhysicalSize<u32>) {
+    pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
+        let control_flow = match event {
+            Event::WindowEvent { ref event, window_id } if *window_id == self.window.id() => {
+                match event {
+                    WindowEvent::CloseRequested => Some(ControlFlow::Exit),
+                    WindowEvent::KeyboardInput { input, .. } => match input {
+                        KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
+                            Some(ControlFlow::Exit)
+                        }
+                        _ => None,
+                    },
+                    WindowEvent::Resized(new_size) => {
+                        self.on_resize(*new_size);
+                        None
+                    }
+                    _ => None,
+                }
+            }
+            Event::RedrawRequested(_) => {
+                self.on_frame();
+                None
+            }
+            Event::MainEventsCleared => {
+                // RedrawRequested will only trigger once, unless we manually
+                // request it.
+                self.window.request_redraw();
+                None
+            }
+
+            _ => None
+        };
+        
+        // Now let ImGUI handle events.
+        self.winit_platform.handle_event(self.imgui_context.io_mut(), &self.window, event);
+
+        control_flow
+    }
+
+    fn on_resize(&mut self, new_size: dpi::PhysicalSize<u32>) {
         self.size = new_size;
         self.sc_desc.width = new_size.width;
         self.sc_desc.height = new_size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
     }
 
-    pub fn process_event(&mut self, event: &WindowEvent) -> Option<ControlFlow> {
-        match event {
-            WindowEvent::CloseRequested => Some(ControlFlow::Exit),
-            WindowEvent::KeyboardInput { input, .. } => match input {
-                KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
-                    Some(ControlFlow::Exit)
-                }
-                _ => None
-            },
-            WindowEvent::Resized(new_size) => {
-                self.on_resize(*new_size);
-                None
-            }
-            _ => None
-        }
-    }
-
-    pub fn update(&mut self) {
+    fn on_frame(&mut self) {
         for (world, schedule, resources) in &mut self.worlds {
             schedule.execute_in_thread_pool(world, resources, &self.thread_pool);
         }
-    }
 
-    pub fn render(&mut self) {
         let frame = self.swap_chain.get_current_frame();
 
         match frame {
             Ok(frame) => {
                 let frame = frame.output;
 
-                let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
+                let imgui = &mut self.imgui_context;
+                let result = self.winit_platform.prepare_frame(imgui.io_mut(), & self.window);
 
-                {
-                    let _render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                        color_attachments: &[RenderPassColorAttachmentDescriptor {
-                            attachment: &frame.view,
-                            resolve_target: None,
-                            ops: Operations { load: LoadOp::Clear(Color { r: 0.1, g: 0.2, b: 0.3, a: 1.0 }), store: true },
-                        }],
-                        depth_stencil_attachment: None,
-                    });
-                }
+                match result {
+                    Ok(()) => {
+                        let ui = imgui.frame();
+
+                        {
+                            let window = imgui::Window::new(im_str!("Hello world"));
+                            window.size([300.0, 100.0], Condition::FirstUseEver).build(&ui, || {
+                                ui.text(im_str!("Hello world!"));
+                                ui.text(im_str!("This...is...imgui-rs on WGPU!"));
+                                ui.separator();
+                                let mouse_pos = ui.io().mouse_pos;
+                                ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
+                            });
+                        }
         
-                // submit will accept anything that implements IntoIter
-                self.queue.submit(std::iter::once(encoder.finish()));
-            },
+                        let mut encoder =
+                            self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
+        
+                        {
+                            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                                    attachment: &frame.view,
+                                    resolve_target: None,
+                                    ops: wgpu::Operations {
+                                        load: wgpu::LoadOp::Clear(Color { r: 0.1, g: 0.2, b: 0.3, a: 1.0 }),
+                                        store: true,
+                                    },
+                                }],
+                                depth_stencil_attachment: None,
+                            });
+            
+                            self.imgui_renderer.render(ui.render(), &self.queue, &self.device, &mut render_pass)
+                                .expect("Rendering failed");
+                        }
+        
+                        // submit will accept anything that implements IntoIter
+                        self.queue.submit(std::iter::once(encoder.finish()));
+                    }
+                    Err(error) => {
+                        log::error!("Error getting ImGUI frame: {}", error);
+                    }
+                }
+            }
             Err(error) => {
                 log::error!("Error getting render frame: {}", error);
             }

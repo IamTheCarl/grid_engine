@@ -13,11 +13,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 use native_dialog::{Dialog, MessageAlert, MessageType};
 
-use winit::{
-    event::*,
-    event_loop::EventLoop,
-    window::WindowBuilder,
-};
+use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 mod client;
 use client::Client;
@@ -53,27 +49,12 @@ fn trampoline() -> Result<(), Box<dyn std::error::Error>> {
 
     // These are the only two things that can fail.
     let window = WindowBuilder::new().build(&event_loop)?;
-    let mut client = Client::create_with_window(&window)?;
+    let mut client = Client::create_with_window(window)?;
 
     event_loop.run(move |event, _, control_flow| {
-        match event {
-            Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
-                let result = client.process_event(event);
-                if let Some(new_flow) = result {
-                    *control_flow = new_flow;
-                }
-            }
-            Event::RedrawRequested(_) => {
-                client.update();
-                client.render();
-            }
-            Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
-                window.request_redraw();
-            }
-
-            _ => {}
+        let new_flow = client.process_event(&event);
+        if let Some(new_flow) = new_flow{
+            *control_flow = new_flow;
         }
     });
 }
