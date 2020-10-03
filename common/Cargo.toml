@@ -1,7 +1,7 @@
 [package]
 name = "common"
 version = "0.1.0"
-authors = ["James Carl <jamescarl96@gmail.com>"]
+authors = ["James Carl"]
 edition = "2018"
 license = "AGPL"
 

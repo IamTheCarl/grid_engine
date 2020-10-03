@@ -57,7 +57,7 @@ fn trampoline() -> Result<(), Box<dyn std::error::Error>> {
 
     event_loop.run(move |event, _, control_flow| {
         let new_flow = client.process_event(&event);
-        if let Some(new_flow) = new_flow{
+        if let Some(new_flow) = new_flow {
             *control_flow = new_flow;
         }
     });

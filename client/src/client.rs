@@ -2,10 +2,10 @@
 // AGPL-3.0-or-later
 
 use futures::executor::block_on;
-use wgpu::*;
 use imgui::*;
 use imgui_wgpu::Renderer;
 use imgui_winit_support::WinitPlatform;
+use wgpu::*;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use legion::{Resources, Schedule, World};
@@ -43,7 +43,7 @@ pub struct Client {
     winit_platform: WinitPlatform,
     imgui_context: imgui::Context,
     imgui_renderer: Renderer,
-    
+
     // World simulation stuff.
     thread_pool: ThreadPool,
     worlds: Vec<(World, Schedule, Resources)>,
@@ -142,27 +142,38 @@ impl Client {
         let mut worlds = Vec::new();
         worlds.push((world, schedule, resources));
 
-        Ok(Client { window, surface, device, queue, sc_desc, swap_chain, size, winit_platform, imgui_context, imgui_renderer, worlds, thread_pool })
+        Ok(Client {
+            window,
+            surface,
+            device,
+            queue,
+            sc_desc,
+            swap_chain,
+            size,
+            winit_platform,
+            imgui_context,
+            imgui_renderer,
+            worlds,
+            thread_pool,
+        })
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
         let control_flow = match event {
-            Event::WindowEvent { ref event, window_id } if *window_id == self.window.id() => {
-                match event {
-                    WindowEvent::CloseRequested => Some(ControlFlow::Exit),
-                    WindowEvent::KeyboardInput { input, .. } => match input {
-                        KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
-                            Some(ControlFlow::Exit)
-                        }
-                        _ => None,
-                    },
-                    WindowEvent::Resized(new_size) => {
-                        self.on_resize(*new_size);
-                        None
+            Event::WindowEvent { ref event, window_id } if *window_id == self.window.id() => match event {
+                WindowEvent::CloseRequested => Some(ControlFlow::Exit),
+                WindowEvent::KeyboardInput { input, .. } => match input {
+                    KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
+                        Some(ControlFlow::Exit)
                     }
                     _ => None,
+                },
+                WindowEvent::Resized(new_size) => {
+                    self.on_resize(*new_size);
+                    None
                 }
-            }
+                _ => None,
+            },
             Event::RedrawRequested(_) => {
                 self.on_frame();
                 None
@@ -174,9 +185,9 @@ impl Client {
                 None
             }
 
-            _ => None
+            _ => None,
         };
-        
+
         // Now let ImGUI handle events.
         self.winit_platform.handle_event(self.imgui_context.io_mut(), &self.window, event);
 
@@ -202,7 +213,7 @@ impl Client {
                 let frame = frame.output;
 
                 let imgui = &mut self.imgui_context;
-                let result = self.winit_platform.prepare_frame(imgui.io_mut(), & self.window);
+                let result = self.winit_platform.prepare_frame(imgui.io_mut(), &self.window);
 
                 match result {
                     Ok(()) => {
@@ -218,10 +229,10 @@ impl Client {
                                 ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
                             });
                         }
-        
+
                         let mut encoder =
                             self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
-        
+
                         {
                             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
@@ -234,11 +245,12 @@ impl Client {
                                 }],
                                 depth_stencil_attachment: None,
                             });
-            
-                            self.imgui_renderer.render(ui.render(), &self.queue, &self.device, &mut render_pass)
+
+                            self.imgui_renderer
+                                .render(ui.render(), &self.queue, &self.device, &mut render_pass)
                                 .expect("Rendering failed");
                         }
-        
+
                         // submit will accept anything that implements IntoIter
                         self.queue.submit(std::iter::once(encoder.finish()));
                     }

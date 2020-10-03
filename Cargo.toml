@@ -1,2 +1,2 @@
 [workspace]
-members = ["common", "client", "server"]
+members = ["common", "client", "server", "grid_engine_wasm_api"]
