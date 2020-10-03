@@ -1,0 +1,4 @@
+
+# We currently don't have a way to test these packages.
+[tasks.test]
+disabled = true

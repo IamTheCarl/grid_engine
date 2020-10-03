@@ -2,11 +2,8 @@
 [env]
 CARGO_MAKE_WORKSPACE_EMULATION = true
 CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
-    "common",
-    "client",
-    "server",
-    "grid_engine_wasm_api",
-    "example_mod"
+    "wasm",
+    "native"
 ]
 
 # [tasks.build]

@@ -7,10 +7,3 @@ license-file = "../COPYING"
 
 [dependencies]
 grid_engine_wasm_api = { path = "../grid_engine_wasm_api" }
-
-# Release build uses every possible optimization.
-[profile.release]
-lto = true
-opt-level=3
-incremental = false
-codegen-units = 1
