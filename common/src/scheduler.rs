@@ -429,18 +429,4 @@ mod test_scheduler {
 
         assert_eq!(sleep_time, Duration::from_secs(0));
     }
-
-    #[test]
-    fn use_half_time() {
-        let mut scheduler = Scheduler::new(1);
-        scheduler
-            .schedule_event(Event::new(scheduler.now(), |_p| {
-                std::thread::sleep(Duration::from_secs(1));
-            }))
-            .unwrap();
-
-        let sleep_time = scheduler.tick(Duration::from_secs(2));
-
-        assert!(Duration::from_secs(1) - sleep_time < Duration::from_millis(1));
-    }
 }

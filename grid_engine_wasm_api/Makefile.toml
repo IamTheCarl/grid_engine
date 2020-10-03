@@ -1,0 +1,8 @@
+
+[tasks.build]
+command = "cargo"
+args = ["build"]
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
