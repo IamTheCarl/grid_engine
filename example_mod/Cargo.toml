@@ -1,15 +1,12 @@
 [package]
-name = "server"
+name = "example_mod"
 version = "0.1.0"
 authors = ["James Carl"]
 edition = "2018"
-license = "AGPL"
+license-file = "../COPYING"
 
 [dependencies]
-common = { path = "../common" }
-jemallocator = "0.3.2"
-env_logger = "0.7.1"
-log = "0.4.11"
+grid_engine_wasm_api = { path = "../grid_engine_wasm_api" }
 
 # Release build uses every possible optimization.
 [profile.release]

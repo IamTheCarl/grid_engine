@@ -12,4 +12,15 @@ That's it. You're ready to go.
 
 # Creating your project
 
-Working on that.
+Your project including this library must be built as a web assembly target. There are two ways to do this.
+First: Just pass the target to cargo manually.
+```
+cargo build --target wasm32-wasi
+```
+
+Second: Provide a config file `.cargo/config.toml` that provides the target.
+The content of that config file should be as so.
+```
+[build]
+target = "wasm32-wasi"
+```

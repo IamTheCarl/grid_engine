@@ -10,3 +10,10 @@ repository = "https://github.com/IamTheCarl/grid_engine"
 readme = "README.md"
 
 [dependencies]
+
+# Release build uses every possible optimization.
+[profile.release]
+lto = true
+opt-level=3
+incremental = false
+codegen-units = 1
