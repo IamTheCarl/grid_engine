@@ -7,6 +7,6 @@ license = "AGPL"
 
 [dependencies]
 common = { path = "../common" }
-jemallocator = "0.3.2"
 env_logger = "0.7.1"
+jemallocator = "0.3.2"
 log = "0.4.11"
