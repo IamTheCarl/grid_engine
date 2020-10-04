@@ -3,17 +3,6 @@
 CARGO_MAKE_WORKSPACE_EMULATION = true
 CARGO_MAKE_CRATE_WORKSPACE_MEMBERS = [
     "wasm",
+    "example_mod",
     "native"
 ]
-
-# [tasks.build]
-# workspace = false
-# extend = "grid_engine_wasm_api/Makefile.toml"
-
-# [tasks.build-release]
-# command = "cargo"
-# args = ["build", "--release"]
-
-# [tasks.clean]
-# command = "cargo"
-# args = ["clean"]

@@ -1,5 +1,5 @@
 [workspace]
-members = ["grid_engine_wasm_api"]
+members = ["test_ui"]
 
 # Release build uses every possible optimization.
 [profile.release]

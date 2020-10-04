@@ -3,11 +3,11 @@ Grid Locked is a game I've wanted to make since I was in highschool.
 Imagine Minecraft and Factorio had a baby, except you can also build flying ships as well.
 
 This is currently a very early work in progress.
-I'm still working out details of the road map.
+I'm still working out details.
 
 # Organization
 
-This project is split into two major parts.
+This project is split into three major parts.
 
 ## Native
 
@@ -32,7 +32,7 @@ Wasm contains the portable parts of this project that are compiled once to webas
 
 Maybe not the best name for the library, but at least it's clear. This is a library hosted on [crates.io](https://crates.io/crates/grid_engine_wasm_api) meant to assist in the development of your own content for this engine.
 
-### example_mod
+## example_mod
 
 This is an example of most features used by the modding API. It isn't really meant to serve as a template for your projects (a template repository will be provided in the future) but rather as an example and proof of practicality for common use cases of the API.
 

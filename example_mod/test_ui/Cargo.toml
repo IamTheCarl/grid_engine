@@ -3,7 +3,7 @@ name = "example_mod"
 version = "0.1.0"
 authors = ["James Carl"]
 edition = "2018"
-license-file = "../COPYING"
+license-file = "../../COPYING"
 
 [dependencies]
-grid_engine_wasm_api = { path = "../grid_engine_wasm_api" }
+grid_engine_wasm_api = { path = "../../wasm/grid_engine_wasm_api" }

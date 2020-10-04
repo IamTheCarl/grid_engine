@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "client", "server"]
+members = ["common", "client", "server", "cargo-grid"]
 
 # Release build uses every possible optimization.
 [profile.release]
