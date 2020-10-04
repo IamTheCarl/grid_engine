@@ -8,6 +8,7 @@
 mod time;
 pub use time::*;
 
+pub mod modules;
 pub mod physics;
 pub mod scheduler;
 
