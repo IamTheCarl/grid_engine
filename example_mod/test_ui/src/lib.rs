@@ -1,5 +1,4 @@
-
 #[no_mangle]
-extern "C" fn main() {
-    println!("Hello, world!");
+extern "C" fn add_one(x: i32) -> i32 {
+    x + 1
 }

@@ -2,15 +2,15 @@
 // AGPL-3.0-or-later
 
 //! Modules are how user made content are loaded into the engine.
-//! 
+//!
 //! Modules are zip archives (typically compressed) containing web assembly code to add content to the game, along
 //! with additional assets they may depend on.
-//! 
+//!
 //! Currently they are only able to be manually imported.
 //! There is no automated download of modules.
 //! Dependency resolution is unfinished.
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 /// Metadata of a module package.

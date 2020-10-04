@@ -3,10 +3,10 @@
 
 use argh::FromArgs;
 use colored::*;
+use common::modules::PackageMetadata;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use common::modules::PackageMetadata;
 
 use cargo_metadata::Message;
 use std::process::{Command, Output, Stdio};
@@ -131,13 +131,12 @@ fn pack_project(arguments: &Pack) {
 
 /// Builds a whole project and then returns a list of artifacts.
 fn build_project(project_dir: &Path) -> Result<Vec<PathBuf>, String> {
-
     fn get_output(project_dir: &Path) -> Result<Output, String> {
         let project_dir = project_dir.canonicalize();
         // Yes, we just manually call cargo and then parse its output.
         let cargo_executable = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
 
-        match project_dir  {
+        match project_dir {
             Ok(project_dir) => {
                 let cargo_command = Command::new(cargo_executable)
                     .current_dir(project_dir)
@@ -149,20 +148,18 @@ fn build_project(project_dir: &Path) -> Result<Vec<PathBuf>, String> {
 
                 match cargo_command {
                     Ok(cargo_command) => {
-                        // This should print all the output 
+                        // This should print all the output
                         let output = cargo_command.wait_with_output();
 
                         match output {
                             Ok(output) => Ok(output),
-                            Err(error) => Err(format!("Failed to grab output of cargo: {}", error))
+                            Err(error) => Err(format!("Failed to grab output of cargo: {}", error)),
                         }
                     }
-                    Err(error) => Err(format!("Failed to launch cargo: {}", error))
+                    Err(error) => Err(format!("Failed to launch cargo: {}", error)),
                 }
             }
-            Err(error) => {
-                Err(format!("Failed to get project directory: {}", error))
-            }
+            Err(error) => Err(format!("Failed to get project directory: {}", error)),
         }
     }
 
@@ -178,9 +175,8 @@ fn build_project(project_dir: &Path) -> Result<Vec<PathBuf>, String> {
             Ok(message) => {
                 match message {
                     Message::CompilerArtifact(artifact) => {
-        
                         let files = &artifact.filenames;
-        
+
                         for file in files {
                             // Only accept wasm artifacts.
                             if let Some(extension) = file.extension() {
@@ -201,7 +197,7 @@ fn build_project(project_dir: &Path) -> Result<Vec<PathBuf>, String> {
             }
             Err(error) => {
                 // We bail out if we fail here.
-                return Err(format!("Cargo output pipe has failed: {}", error))
+                return Err(format!("Cargo output pipe has failed: {}", error));
             }
         }
     }
