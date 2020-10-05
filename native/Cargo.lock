@@ -300,10 +300,10 @@ name = "cargo-grid"
 version = "0.1.0"
 dependencies = [
  "argh",
+ "bincode",
  "cargo_metadata",
  "colored",
  "common",
- "postcard",
  "serde",
  "toml",
  "zip",
@@ -432,6 +432,8 @@ dependencies = [
 name = "common"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "bincode",
  "lazy_static",
  "legion",
  "log",
@@ -446,6 +448,7 @@ dependencies = [
  "sys-info",
  "threadpool",
  "wasmtime",
+ "zip",
 ]
 
 [[package]]
@@ -1226,7 +1229,6 @@ dependencies = [
  "as-slice",
  "generic-array 0.13.2",
  "hash32",
- "serde",
  "stable_deref_trait",
 ]
 
@@ -2041,23 +2043,6 @@ name = "pkg-config"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
-
-[[package]]
-name = "postcard"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3e3f5c2e9a91383c6594ec68aa2dfdfe19a3c86f34b088ba7203f2483d2682f"
-dependencies = [
- "heapless",
- "postcard-cobs",
- "serde",
-]
-
-[[package]]
-name = "postcard-cobs"
-version = "0.1.5-pre"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c68cb38ed13fd7bc9dd5db8f165b7c8d9c1a315104083a2b10f11354c2af97f"
 
 [[package]]
 name = "ppv-lite86"

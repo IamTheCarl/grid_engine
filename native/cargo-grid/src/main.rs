@@ -76,7 +76,7 @@ fn pack_project(arguments: &Pack) {
                                                 .compression_method(zip::CompressionMethod::Bzip2);
 
                                             // Pack in metadata
-                                            let metadata = postcard::to_stdvec(metadata)?;
+                                            let metadata = bincode::serialize(metadata)?;
                                             zip.start_file("META", options)?;
                                             zip.write_all(&metadata)?;
 
@@ -212,6 +212,7 @@ fn build_project(project_dir: &Path) -> Result<Vec<PathBuf>, String> {
 
 /// Reads metadata about the project.
 fn read_package_meta_toml(project_dir: &Path) -> Result<PackageMetadata, String> {
+    // TODO should probably read this using serde.
     let toml_file = project_dir.join("GridPackage.toml");
 
     if toml_file.exists() {

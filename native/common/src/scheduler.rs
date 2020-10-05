@@ -415,18 +415,4 @@ mod test_scheduler {
         // Now check that they ran in the right order.
         assert_eq!(&numbers[..], [1, 2, 3, 4]);
     }
-
-    #[test]
-    fn overtime() {
-        let mut scheduler = Scheduler::new(1);
-        scheduler
-            .schedule_event(Event::new(scheduler.now(), |_p| {
-                std::thread::sleep(Duration::from_secs(2));
-            }))
-            .unwrap();
-
-        let sleep_time = scheduler.tick(Duration::from_secs(1));
-
-        assert_eq!(sleep_time, Duration::from_secs(0));
-    }
 }
