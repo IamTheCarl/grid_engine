@@ -20,6 +20,6 @@ serde = "1.0.116"
 simba = { version = "0.2.0", features = ["partial_fixed_point_support"] }
 slotmap = "0.4.0"
 sys-info = "0.7.0"
-threadpool = "1.8.1"
+threadpool = "1.8.1" # Remove that once you cleanup the scheduler.
 wasmtime = "0.20.0"
 zip = { version = "0.5.8", features = [ "bzip2" ] }

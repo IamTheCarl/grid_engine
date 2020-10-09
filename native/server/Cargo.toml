@@ -6,7 +6,9 @@ edition = "2018"
 license = "AGPL"
 
 [dependencies]
+anyhow = "1.0.32"
 common = { path = "../common" }
 env_logger = "0.7.1"
 jemallocator = "0.3.2"
 log = "0.4.11"
+wasmtime = "0.20.0"
