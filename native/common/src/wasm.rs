@@ -39,7 +39,6 @@
 //     fn layout_filter(&self) -> &Self::Layout {
 //         &self.layout
 //     }
-    
 
 //     fn filters(&mut self) -> (&Self::Layout, &mut Self::Dynamic) {
 //         (&self.layout, &mut self.dynamic)
@@ -128,33 +127,32 @@
 //     }
 // }
 
+// // For now I'm using the server as my sort of "scratch space" because it's so simple to experiment in right now.
+// use common::modules::*;
+// use std::path::PathBuf;
+// use wasmtime::*;
+// use std::io::prelude::*;
 
-    // // For now I'm using the server as my sort of "scratch space" because it's so simple to experiment in right now.
-    // use common::modules::*;
-    // use std::path::PathBuf;
-    // use wasmtime::*;
-    // use std::io::prelude::*;
+// let package = std::fs::File::open("../example_mod/target/example_mod.zip")?;
+// let mut package = PackageFile::load(std::io::BufReader::new(package))?;
 
-    // let package = std::fs::File::open("../example_mod/target/example_mod.zip")?;
-    // let mut package = PackageFile::load(std::io::BufReader::new(package))?;
+// let mut wasm_binary = Vec::new();
 
-    // let mut wasm_binary = Vec::new();
+// {
+//     // Get a reader for the file.
+//     let mut wasm = package.get_wasm(&PathBuf::from("test_ui.wasm")).unwrap();
 
-    // {
-    //     // Get a reader for the file.
-    //     let mut wasm = package.get_wasm(&PathBuf::from("test_ui.wasm")).unwrap();
+//     // Unpack it into memory.
+//     wasm.read_to_end(&mut wasm_binary)?;
+// }
 
-    //     // Unpack it into memory.
-    //     wasm.read_to_end(&mut wasm_binary)?;
-    // }
+// let store = Store::default();
+// let module = Module::new(store.engine(), wasm_binary)?;
+// let instance = Instance::new(&store, &module, &[])?;
 
-    // let store = Store::default();
-    // let module = Module::new(store.engine(), wasm_binary)?;
-    // let instance = Instance::new(&store, &module, &[])?;
+// let add_one = instance
+//     .get_func("add_one")
+//     .ok_or(anyhow::format_err!("failed to find `add_one` function export"))?
+//     .get1::<i32, i32>()?;
 
-    // let add_one = instance
-    //     .get_func("add_one")
-    //     .ok_or(anyhow::format_err!("failed to find `add_one` function export"))?
-    //     .get1::<i32, i32>()?;
-
-    // log::info!("Got result: {}", add_one(5)?);
+// log::info!("Got result: {}", add_one(5)?);

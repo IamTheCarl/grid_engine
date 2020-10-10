@@ -13,6 +13,8 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use num_traits::cast::FromPrimitive;
 
+use anyhow::{anyhow, Result};
+
 // use vk_shader_macros::include_glsl;
 
 // static VERTEX_SHADER: &[u32] = include_glsl!("shaders/test.vert");
@@ -68,7 +70,7 @@ impl Client {
             .await
     }
 
-    fn setup_imgui(window: &Window) -> Result<(WinitPlatform, imgui::Context), Box<dyn std::error::Error>> {
+    fn setup_imgui(window: &Window) -> Result<(WinitPlatform, imgui::Context)> {
         // Set up dear imgui
         let mut imgui = imgui::Context::create();
         let mut platform = WinitPlatform::init(&mut imgui);
@@ -91,7 +93,7 @@ impl Client {
         Ok((platform, imgui))
     }
 
-    pub fn create_with_window(window: Window) -> Result<Client, Box<dyn std::error::Error>> {
+    pub fn create_with_window(window: Window) -> Result<Client> {
         let size = window.inner_size();
 
         // The instance is a handle to the graphics driver.
@@ -102,7 +104,8 @@ impl Client {
         let surface = unsafe { instance.create_surface(&window) };
 
         // Grab the graphics adapter (the GPU outputting to the display)
-        let adapter = block_on(Self::request_adapter(&instance, &surface)).ok_or("Failed to find graphics adapter.")?;
+        let adapter =
+            block_on(Self::request_adapter(&instance, &surface)).ok_or(anyhow!("Failed to find graphics adapter."))?;
 
         // Get the actual GPU now.
         let (device, mut queue) = block_on(Self::request_device(&adapter))?;

@@ -9,13 +9,16 @@ mod time;
 pub use time::*;
 
 pub mod modules;
-pub mod wasm;
+pub mod networking;
 pub mod physics;
 pub mod scheduler;
+pub mod wasm;
+
+use anyhow::Result;
 
 /// Writes basic system info such as the OS, memory, and the processor used.
 /// Does not log anything about the GPU.
-pub fn log_basic_system_info() -> Result<(), Box<dyn std::error::Error>> {
+pub fn log_basic_system_info() -> Result<()> {
     let os = os_info::get();
 
     log::info!("OS Info: {}", os);

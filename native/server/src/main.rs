@@ -6,6 +6,8 @@ use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+use anyhow::Result;
+
 fn main() {
     let result = trampoline();
 
@@ -18,7 +20,7 @@ fn main() {
 
 /// A function that generally catches errors from the client setup so that they can be properly handled
 /// and displayed to the user.
-fn trampoline() -> Result<(), Box<dyn std::error::Error>> {
+fn trampoline() -> Result<()> {
     env_logger::init();
 
     log::info!("Welcome to Grid Engine!");

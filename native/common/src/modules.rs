@@ -10,13 +10,13 @@
 //! There is no automated download of modules.
 //! Dependency resolution is unfinished.
 
+use anyhow::{anyhow, Result};
 use io::{Read, Seek};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::HashMap;
 use std::io;
-use anyhow::{anyhow, Result};
-use zip::read::{ZipArchive, ZipFile};
 use std::path::{Path, PathBuf};
+use zip::read::{ZipArchive, ZipFile};
 
 #[derive(Serialize, Deserialize)]
 /// Metadata of a module package.
@@ -56,13 +56,13 @@ impl<R: Read + Seek> PackageFile<R> {
                 _ => {
                     let file_path = PathBuf::from(file.name());
                     if file_path.starts_with("wasm") {
-                        let path = PathBuf::from(file_path.strip_prefix("wasm")
-                            .expect("A file under binary is not under binary."));
+                        let path =
+                            PathBuf::from(file_path.strip_prefix("wasm").expect("A file under binary is not under binary."));
                         log::debug!("Registered wasm resource: {:?}", path);
                         wasm.insert(path, index);
                     } else {
                         // We log all of them together when we're done.
-                        // We do this so 
+                        // We do this so
                         nonstandard_paths.push(format!("{}\n", file_name));
                     }
                 }
@@ -71,7 +71,6 @@ impl<R: Read + Seek> PackageFile<R> {
 
         // Check to make sure everything we need is there and at valid locations.
         if let Some(metadata) = metadata {
-
             if nonstandard_paths.is_empty() {
                 Ok(PackageFile { archive, metadata, wasm })
             } else {
