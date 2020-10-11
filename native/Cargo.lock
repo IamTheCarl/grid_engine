@@ -381,6 +381,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "argh",
+ "base64 0.13.0",
  "common",
  "env_logger",
  "futures",
@@ -395,7 +396,10 @@ dependencies = [
  "log",
  "native-dialog",
  "num-traits",
+ "platform-dirs",
+ "rand",
  "rayon",
+ "rsa",
  "vk-shader-macros",
  "wgpu",
  "winit",
@@ -474,7 +478,6 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.13.0",
  "bincode",
  "laminar",
  "lazy_static",
@@ -484,7 +487,6 @@ dependencies = [
  "nalgebra",
  "num-traits",
  "os_info",
- "platform-dirs",
  "rand",
  "rsa",
  "rstar",
@@ -493,6 +495,7 @@ dependencies = [
  "slotmap",
  "sys-info",
  "threadpool",
+ "uuid",
  "wasmtime",
  "zip",
 ]

@@ -31,6 +31,8 @@ struct Arguments {
     num_threads: usize,
 }
 
+use crate::users;
+
 pub struct Client {
     // General graphics stuff.
     window: Window,

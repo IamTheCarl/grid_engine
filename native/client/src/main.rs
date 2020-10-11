@@ -17,6 +17,8 @@ use anyhow::{Context, Result};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 mod client;
+mod users;
+
 use client::Client;
 
 fn main() {
@@ -45,8 +47,6 @@ fn trampoline() -> Result<()> {
 
     log::info!("Welcome to Grid Engine!");
     common::log_basic_system_info().context("Error logging basic system info.")?;
-
-    common::networking::load_keys().context("Error loading authentication key.")?;
 
     let event_loop = EventLoop::new();
 
