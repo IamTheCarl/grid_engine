@@ -8,12 +8,12 @@ use imgui_winit_support::WinitPlatform;
 use wgpu::*;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
-use legion::{Resources, Schedule, World};
+use legion::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use num_traits::cast::FromPrimitive;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 
 // use vk_shader_macros::include_glsl;
 
@@ -31,7 +31,8 @@ struct Arguments {
     num_threads: usize,
 }
 
-use crate::users;
+use crate::ecs::*;
+use crate::gui;
 
 pub struct Client {
     // General graphics stuff.
@@ -50,7 +51,7 @@ pub struct Client {
 
     // World simulation stuff.
     thread_pool: ThreadPool,
-    worlds: Vec<(World, Schedule, Resources)>,
+    worlds: Vec<(World, Schedule, Resources, legion::systems::CommandBuffer)>,
 }
 
 impl Client {
@@ -133,6 +134,7 @@ impl Client {
 
         // TODO dynamically load this world in via UI.
         let mut world = World::default();
+        let command_buffer = legion::systems::CommandBuffer::new(&world);
         let resources = Resources::default();
         let mut schedule_builder = Schedule::builder();
         physics::add_systems(&mut schedule_builder);
@@ -142,10 +144,13 @@ impl Client {
             Positional::new(PhysicsVec3::center_bottom_of_block(0, 0, 0).unwrap(), PhysicsScalar::from_i64(0).unwrap()),
             Movable::new(PhysicsScalar::from_i64(0).unwrap(), PhysicsVec3::zeroed(), PhysicsScalar::from_i64(0).unwrap()),
             CylinderPhysicalForm::new(PhysicsScalar::from_f32(0.4).unwrap(), PhysicsScalar::from_i64(2).unwrap()),
+            GUIComponent::new(gui::HelloWorld)
         ));
 
+        // world.push();
+
         let mut worlds = Vec::new();
-        worlds.push((world, schedule, resources));
+        worlds.push((world, schedule, resources, command_buffer));
 
         Ok(Client {
             window,
@@ -207,7 +212,7 @@ impl Client {
     }
 
     fn on_frame(&mut self) {
-        for (world, schedule, resources) in &mut self.worlds {
+        for (world, schedule, resources, _command_buffer) in &mut self.worlds {
             schedule.execute_in_thread_pool(world, resources, &self.thread_pool);
         }
 
@@ -224,15 +229,18 @@ impl Client {
                     Ok(()) => {
                         let ui = imgui.frame();
 
-                        {
-                            let window = imgui::Window::new(im_str!("Hello world"));
-                            window.size([300.0, 100.0], Condition::FirstUseEver).build(&ui, || {
-                                ui.text(im_str!("Hello world!"));
-                                ui.text(im_str!("This...is...imgui-rs on WGPU!"));
-                                ui.separator();
-                                let mouse_pos = ui.io().mouse_pos;
-                                ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
-                            });
+                        // Since we can't prove to a system that our ui access is thread safe, we don't use a system and just directly
+                        // call the gui components ourselves.
+                        for (world, _schedule, _resources, command_buffer) in &mut self.worlds {
+                            let mut query = <(Entity, &mut GUIComponent)>::query();
+                            for (entity, gui) in query.iter_mut(world) {
+                                let result = gui.on_frame(&ui)
+                                    .context("Error while rendering GUI. Associated entity will be removed from world.");
+                                if let Err(error) = result {
+                                    log::error!("{:?}", error);
+                                    command_buffer.remove(*entity);
+                                }
+                            }
                         }
 
                         let mut encoder =

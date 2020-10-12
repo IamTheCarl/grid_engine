@@ -18,6 +18,8 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 mod client;
 mod users;
+mod ecs;
+mod gui;
 
 use client::Client;
 
