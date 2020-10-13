@@ -11,8 +11,6 @@ use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 use legion::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
-use num_traits::cast::FromPrimitive;
-
 use anyhow::{anyhow, Result, Context};
 
 // use vk_shader_macros::include_glsl;
@@ -130,25 +128,14 @@ impl Client {
         let arguments: Arguments = argh::from_env();
         let thread_pool = ThreadPoolBuilder::new().num_threads(arguments.num_threads).build()?;
 
-        use common::physics::{self, *};
-
         // TODO dynamically load this world in via UI.
         let mut world = World::default();
         let command_buffer = legion::systems::CommandBuffer::new(&world);
         let resources = Resources::default();
         let mut schedule_builder = Schedule::builder();
-        physics::add_systems(&mut schedule_builder);
         let schedule = schedule_builder.build();
 
-        world.push((
-            Positional::new(PhysicsVec3::center_bottom_of_block(0, 0, 0).unwrap(), PhysicsScalar::from_i64(0).unwrap()),
-            Movable::new(PhysicsScalar::from_i64(0).unwrap(), PhysicsVec3::zeroed(), PhysicsScalar::from_i64(0).unwrap()),
-            CylinderPhysicalForm::new(PhysicsScalar::from_f32(0.4).unwrap(), PhysicsScalar::from_i64(2).unwrap()),
-            GUIComponent::new(gui::HelloWorld)
-        ));
-
-        // world.push();
-
+        world.push((GUIComponent::new(gui::HelloWorld), ()));
         let mut worlds = Vec::new();
         worlds.push((world, schedule, resources, command_buffer));
 

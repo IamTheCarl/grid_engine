@@ -9,8 +9,7 @@ mod time;
 pub use time::*;
 
 pub mod modules;
-pub mod networking;
-pub mod physics;
+// pub mod networking;
 pub mod scheduler;
 pub mod wasm;
 

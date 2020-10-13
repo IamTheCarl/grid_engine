@@ -17,7 +17,7 @@ use anyhow::{Context, Result};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 mod client;
-mod users;
+// mod users;
 mod ecs;
 mod gui;
 
