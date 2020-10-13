@@ -2,14 +2,15 @@
 // AGPL-3.0-or-later
 
 use futures::executor::block_on;
-use imgui::*;
-use imgui_wgpu::Renderer;
-use imgui_winit_support::WinitPlatform;
 use wgpu::*;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use legion::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
+use egui_winit_platform::{Platform, PlatformDescriptor};
+use egui::paint::FontDefinitions;
+use chrono::Timelike;
 
 use anyhow::{anyhow, Result, Context};
 
@@ -29,8 +30,8 @@ struct Arguments {
     num_threads: usize,
 }
 
-use crate::ecs::*;
-use crate::gui;
+// use crate::ecs::*;
+// use crate::gui;
 
 pub struct Client {
     // General graphics stuff.
@@ -42,10 +43,11 @@ pub struct Client {
     swap_chain: SwapChain,
     size: dpi::PhysicalSize<u32>,
 
-    // ImGui stuff.
-    winit_platform: WinitPlatform,
-    imgui_context: imgui::Context,
-    imgui_renderer: Renderer,
+    // Egui stuff.
+    platform: Platform,
+    egui_rpass: RenderPass,
+    demo_app: egui::demos::DemoApp,
+    demo_env: egui::demos::DemoEnvironment,
 
     // World simulation stuff.
     thread_pool: ThreadPool,
@@ -69,29 +71,6 @@ impl Client {
                 compatible_surface: Some(surface),
             })
             .await
-    }
-
-    fn setup_imgui(window: &Window) -> Result<(WinitPlatform, imgui::Context)> {
-        // Set up dear imgui
-        let mut imgui = imgui::Context::create();
-        let mut platform = WinitPlatform::init(&mut imgui);
-        platform.attach_window(imgui.io_mut(), &window, imgui_winit_support::HiDpiMode::Default);
-        imgui.set_ini_filename(None);
-
-        let scale_factor = window.scale_factor();
-        let font_size = (13.0 * scale_factor) as f32;
-        imgui.io_mut().font_global_scale = (1.0 / scale_factor) as f32;
-
-        imgui.fonts().add_font(&[FontSource::DefaultFontData {
-            config: Some(imgui::FontConfig {
-                oversample_h: 1,
-                pixel_snap_h: true,
-                size_pixels: font_size,
-                ..Default::default()
-            }),
-        }]);
-
-        Ok((platform, imgui))
     }
 
     pub fn create_with_window(window: Window) -> Result<Client> {
@@ -121,9 +100,6 @@ impl Client {
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
-        let (winit_platform, mut imgui_context) = Self::setup_imgui(&window)?;
-        let imgui_renderer = Renderer::new(&mut imgui_context, &device, &mut queue, sc_desc.format);
-
         // Grab arguments provided from the command line.
         let arguments: Arguments = argh::from_env();
         let thread_pool = ThreadPoolBuilder::new().num_threads(arguments.num_threads).build()?;
@@ -135,9 +111,22 @@ impl Client {
         let mut schedule_builder = Schedule::builder();
         let schedule = schedule_builder.build();
 
-        world.push((GUIComponent::new(gui::HelloWorld), ()));
+        // world.push((GUIComponent::new(gui::HelloWorld), ()));
         let mut worlds = Vec::new();
         worlds.push((world, schedule, resources, command_buffer));
+
+        // We use the egui_winit_platform crate as the platform.
+        let platform = Platform::new(PlatformDescriptor {
+            physical_width: size.width as u32,
+            physical_height: size.height as u32,
+            scale_factor: window.scale_factor(),
+            font_definitions: FontDefinitions::with_pixels_per_point(window.scale_factor() as f32),
+            style: Default::default(),
+        });
+
+        let egui_rpass = RenderPass::new(&device, TextureFormat::Bgra8UnormSrgb);
+        let demo_app = egui::demos::DemoApp::default();
+        let demo_env = egui::demos::DemoEnvironment::default();
 
         Ok(Client {
             window,
@@ -147,15 +136,20 @@ impl Client {
             sc_desc,
             swap_chain,
             size,
-            winit_platform,
-            imgui_context,
-            imgui_renderer,
+            platform,
+            egui_rpass,
+            demo_app,
+            demo_env,
             worlds,
             thread_pool,
         })
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
+
+        self.platform.handle_event(event);
+        // TODO update time.
+
         let control_flow = match event {
             Event::WindowEvent { ref event, window_id } if *window_id == self.window.id() => match event {
                 WindowEvent::CloseRequested => Some(ControlFlow::Exit),
@@ -172,6 +166,11 @@ impl Client {
                 _ => None,
             },
             Event::RedrawRequested(_) => {
+
+                let time = chrono::Local::now().time();
+                let time_delta = time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64);
+                self.platform.update_time(time_delta);
+
                 self.on_frame();
                 None
             }
@@ -184,9 +183,6 @@ impl Client {
 
             _ => None,
         };
-
-        // Now let ImGUI handle events.
-        self.winit_platform.handle_event(self.imgui_context.io_mut(), &self.window, event);
 
         control_flow
     }
@@ -209,55 +205,35 @@ impl Client {
             Ok(frame) => {
                 let frame = frame.output;
 
-                let imgui = &mut self.imgui_context;
-                let result = self.winit_platform.prepare_frame(imgui.io_mut(), &self.window);
+                // TODO most of this could be done in another thread, or in parallel.
+                let mut ui = self.platform.begin_frame();
 
-                match result {
-                    Ok(()) => {
-                        let ui = imgui.frame();
+                self.demo_app.ui(&mut ui, &self.demo_env);
 
-                        // Since we can't prove to a system that our ui access is thread safe, we don't use a system and just directly
-                        // call the gui components ourselves.
-                        for (world, _schedule, _resources, command_buffer) in &mut self.worlds {
-                            let mut query = <(Entity, &mut GUIComponent)>::query();
-                            for (entity, gui) in query.iter_mut(world) {
-                                let result = gui.on_frame(&ui)
-                                    .context("Error while rendering GUI. Associated entity will be removed from world.");
-                                if let Err(error) = result {
-                                    log::error!("{:?}", error);
-                                    command_buffer.remove(*entity);
-                                }
-                            }
-                        }
+                let (_output, paint_jobs) = self.platform.end_frame();
 
-                        let mut encoder =
-                            self.device.create_command_encoder(&CommandEncoderDescriptor { label: Some("Render Encoder") });
+                let screen_descriptor = ScreenDescriptor {
+                    physical_width: self.sc_desc.width,
+                    physical_height: self.sc_desc.height,
+                    scale_factor: self.window.scale_factor() as f32,
+                };
 
-                        {
-                            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                                    attachment: &frame.view,
-                                    resolve_target: None,
-                                    ops: wgpu::Operations {
-                                        load: wgpu::LoadOp::Clear(Color { r: 0.1, g: 0.2, b: 0.3, a: 1.0 }),
-                                        store: true,
-                                    },
-                                }],
-                                depth_stencil_attachment: None,
-                            });
+                self.egui_rpass.update_texture(&self.device, &self.queue, &self.platform.context().texture());
+                self.egui_rpass.update_buffers(&mut self.device, &mut self.queue, &paint_jobs, &screen_descriptor);
 
-                            self.imgui_renderer
-                                .render(ui.render(), &self.queue, &self.device, &mut render_pass)
-                                .expect("Rendering failed");
-                        }
+                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("encoder"),
+                });
 
-                        // submit will accept anything that implements IntoIter
-                        self.queue.submit(std::iter::once(encoder.finish()));
-                    }
-                    Err(error) => {
-                        log::error!("Error getting ImGUI frame: {}", error);
-                    }
-                }
+                self.egui_rpass.execute(
+                    &mut encoder,
+                    &frame.view,
+                    &paint_jobs,
+                    &screen_descriptor,
+                    Some(wgpu::Color::BLACK),
+                );
+
+                self.queue.submit(std::iter::once(encoder.finish()));
             }
             Err(error) => {
                 log::error!("Error getting render frame: {}", error);

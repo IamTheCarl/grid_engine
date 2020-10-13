@@ -1,6 +1,9 @@
 [workspace]
 members = ["common", "client", "server", "cargo-grid"]
 
+[patch.crates-io]
+egui = { git = "https://github.com/emilk/egui" }
+
 # Release build uses every possible optimization.
 [profile.release]
 codegen-units = 1
