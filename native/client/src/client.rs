@@ -14,11 +14,6 @@ use chrono::Timelike;
 
 use anyhow::{anyhow, Result, Context};
 
-// use vk_shader_macros::include_glsl;
-
-// static VERTEX_SHADER: &[u32] = include_glsl!("shaders/test.vert");
-// static FRAGMENT_SHADER: &[u32] = include_glsl!("shaders/test.frag");
-
 use argh::FromArgs;
 
 #[derive(FromArgs)]
@@ -42,6 +37,7 @@ pub struct Client {
     sc_desc: SwapChainDescriptor,
     swap_chain: SwapChain,
     size: dpi::PhysicalSize<u32>,
+    render_pipeline: wgpu::RenderPipeline, // TODO should that go into a vector of some sort?
 
     // Egui stuff.
     platform: Platform,
@@ -100,6 +96,57 @@ impl Client {
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
+        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+
+            let vs_module = device.create_shader_module(wgpu::include_spirv!("shaders/test.vert.spv"));
+            let fs_module = device.create_shader_module(wgpu::include_spirv!("shaders/test.frag.spv"));
+            
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex_stage: wgpu::ProgrammableStageDescriptor {
+                module: &vs_module,
+                entry_point: "main", // 1.
+            },
+            fragment_stage: Some(wgpu::ProgrammableStageDescriptor { // 2.
+                module: &fs_module,
+                entry_point: "main",
+            }),
+            rasterization_state: Some(
+                wgpu::RasterizationStateDescriptor {
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: wgpu::CullMode::Back,
+                    depth_bias: 0,
+                    depth_bias_slope_scale: 0.0,
+                    depth_bias_clamp: 0.0,
+                    clamp_depth: false,
+                }
+            ),
+            color_states: &[
+                wgpu::ColorStateDescriptor {
+                    format: sc_desc.format,
+                    color_blend: wgpu::BlendDescriptor::REPLACE,
+                    alpha_blend: wgpu::BlendDescriptor::REPLACE,
+                    write_mask: wgpu::ColorWrite::ALL,
+                },
+            ],
+            primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+            depth_stencil_state: None, // 2.
+            vertex_state: wgpu::VertexStateDescriptor {
+                index_format: wgpu::IndexFormat::Uint16, // 3.
+                vertex_buffers: &[], // 4.
+            },
+            sample_count: 1, // 5.
+            sample_mask: !0, // 6.
+            alpha_to_coverage_enabled: false, // 7.
+        });
+
+
         // Grab arguments provided from the command line.
         let arguments: Arguments = argh::from_env();
         let thread_pool = ThreadPoolBuilder::new().num_threads(arguments.num_threads).build()?;
@@ -136,6 +183,7 @@ impl Client {
             sc_desc,
             swap_chain,
             size,
+            render_pipeline,
             platform,
             egui_rpass,
             demo_app,
@@ -204,6 +252,11 @@ impl Client {
         match frame {
             Ok(frame) => {
                 let frame = frame.output;
+                                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("encoder"),
+                });
+
+                // Render UI
 
                 // TODO most of this could be done in another thread, or in parallel.
                 let mut ui = self.platform.begin_frame();
@@ -221,10 +274,6 @@ impl Client {
                 self.egui_rpass.update_texture(&self.device, &self.queue, &self.platform.context().texture());
                 self.egui_rpass.update_buffers(&mut self.device, &mut self.queue, &paint_jobs, &screen_descriptor);
 
-                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("encoder"),
-                });
-
                 self.egui_rpass.execute(
                     &mut encoder,
                     &frame.view,
@@ -232,6 +281,26 @@ impl Client {
                     &screen_descriptor,
                     Some(wgpu::Color::BLACK),
                 );
+
+                // Render World.
+                {
+                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        color_attachments: &[
+                            wgpu::RenderPassColorAttachmentDescriptor {
+                                attachment: &frame.view,
+                                resolve_target: None,
+                                ops: wgpu::Operations {
+                                    load: wgpu::LoadOp::Load,
+                                    store: true,
+                                }
+                            }
+                        ],
+                        depth_stencil_attachment: None,
+                    });
+                
+                    render_pass.set_pipeline(&self.render_pipeline);
+                    render_pass.draw(0..3, 0..1); 
+                }
 
                 self.queue.submit(std::iter::once(encoder.finish()));
             }

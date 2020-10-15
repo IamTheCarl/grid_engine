@@ -24,7 +24,6 @@ platform-dirs = "0.3.0"
 rand = "0.7.3"
 rayon = "1.4.1"
 rsa = "0.3.0"
-vk-shader-macros = "0.2.6"
 wgpu = "0.6.0"
 winit = "0.23.0"
 chrono = "0.4.19"
@@ -40,3 +39,9 @@ version = "=0.6.4"
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies.backend]
 package = "gfx-backend-vulkan"
 version = "=0.6.2"
+
+[build-dependencies]
+anyhow = "1.0.32"
+fs_extra = "1.1.0"
+glob = "0.3.0"
+shaderc = "0.6.0"
