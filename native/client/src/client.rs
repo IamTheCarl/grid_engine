@@ -11,8 +11,14 @@ use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit_platform::{Platform, PlatformDescriptor};
 use egui::paint::FontDefinitions;
 use chrono::Timelike;
+use std::borrow::Cow;
 
 use anyhow::{anyhow, Result, Context};
+
+use vk_shader_macros::include_glsl;
+
+static VERTEX_SHADER: &[u32] = include_glsl!("src/shaders/test.vert");
+static FRAGMENT_SHADER: &[u32] = include_glsl!("src/shaders/test.frag");
 
 use argh::FromArgs;
 
@@ -102,8 +108,8 @@ impl Client {
                 push_constant_ranges: &[],
             });
 
-            let vs_module = device.create_shader_module(wgpu::include_spirv!("shaders/test.vert.spv"));
-            let fs_module = device.create_shader_module(wgpu::include_spirv!("shaders/test.frag.spv"));
+        let vs_module = device.create_shader_module(ShaderModuleSource::SpirV(Cow::Borrowed(VERTEX_SHADER)));
+        let fs_module = device.create_shader_module(ShaderModuleSource::SpirV(Cow::Borrowed(FRAGMENT_SHADER)));
             
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
