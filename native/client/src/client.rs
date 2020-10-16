@@ -3,6 +3,7 @@
 
 use futures::executor::block_on;
 use wgpu::*;
+use wgpu::util::DeviceExt;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use legion::*;
@@ -21,6 +22,44 @@ static VERTEX_SHADER: &[u32] = include_glsl!("src/shaders/test.vert");
 static FRAGMENT_SHADER: &[u32] = include_glsl!("src/shaders/test.frag");
 
 use argh::FromArgs;
+
+// TODO try and see if you can use nalgebra types for this. It would be nice to not have to convert to/from the physics library types.
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+
+unsafe impl bytemuck::Pod for Vertex {}
+unsafe impl bytemuck::Zeroable for Vertex {}
+
+impl Vertex {
+    fn desc<'a>() -> wgpu::VertexBufferDescriptor<'a> {
+        wgpu::VertexBufferDescriptor {
+            stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttributeDescriptor {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float3,
+                },
+                wgpu::VertexAttributeDescriptor {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float3,
+                }
+            ]
+        }
+    }
+}
+
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
+    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+];
 
 #[derive(FromArgs)]
 /// Grid Locked, the Game, finally becoming a reality this time I swear.
@@ -44,6 +83,7 @@ pub struct Client {
     swap_chain: SwapChain,
     size: dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline, // TODO should that go into a vector of some sort?
+    vertex_buffer: wgpu::Buffer, // TODO this should definitely not be here, but it's here for the experiments.
 
     // Egui stuff.
     platform: Platform,
@@ -117,9 +157,9 @@ impl Client {
             layout: Some(&render_pipeline_layout),
             vertex_stage: wgpu::ProgrammableStageDescriptor {
                 module: &vs_module,
-                entry_point: "main", // 1.
+                entry_point: "main",
             },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor { // 2.
+            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
                 module: &fs_module,
                 entry_point: "main",
             }),
@@ -141,16 +181,26 @@ impl Client {
                     write_mask: wgpu::ColorWrite::ALL,
                 },
             ],
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-            depth_stencil_state: None, // 2.
+            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
+            depth_stencil_state: None,
             vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint16, // 3.
-                vertex_buffers: &[], // 4.
+                index_format: wgpu::IndexFormat::Uint16,
+                vertex_buffers: &[
+                    Vertex::desc(),
+                ],
             },
-            sample_count: 1, // 5.
-            sample_mask: !0, // 6.
-            alpha_to_coverage_enabled: false, // 7.
+            sample_count: 1,
+            sample_mask: !0,
+            alpha_to_coverage_enabled: false,
         });
+
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(VERTICES),
+                usage: wgpu::BufferUsage::VERTEX,
+            }
+        );
 
 
         // Grab arguments provided from the command line.
@@ -190,6 +240,7 @@ impl Client {
             swap_chain,
             size,
             render_pipeline,
+            vertex_buffer,
             platform,
             egui_rpass,
             demo_app,
@@ -305,7 +356,8 @@ impl Client {
                     });
                 
                     render_pass.set_pipeline(&self.render_pipeline);
-                    render_pass.draw(0..3, 0..1); 
+                    render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                    render_pass.draw(0..VERTICES.len() as u32, 0..1); 
                 }
 
                 self.queue.submit(std::iter::once(encoder.finish()));
