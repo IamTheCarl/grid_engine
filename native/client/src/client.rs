@@ -2,19 +2,20 @@
 // AGPL-3.0-or-later
 
 use futures::executor::block_on;
-use wgpu::*;
 use wgpu::util::DeviceExt;
+use wgpu::*;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
-use legion::*;
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use bytemuck_derive::*;
+use chrono::Timelike;
+use egui::paint::FontDefinitions;
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit_platform::{Platform, PlatformDescriptor};
-use egui::paint::FontDefinitions;
-use chrono::Timelike;
+use legion::*;
+use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::borrow::Cow;
 
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 
 use vk_shader_macros::include_glsl;
 
@@ -23,16 +24,12 @@ static FRAGMENT_SHADER: &[u32] = include_glsl!("src/shaders/test.frag");
 
 use argh::FromArgs;
 
-// TODO try and see if you can use nalgebra types for this. It would be nice to not have to convert to/from the physics library types.
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Zeroable, Pod)]
 struct Vertex {
     position: [f32; 3],
     color: [f32; 3],
 }
-
-unsafe impl bytemuck::Pod for Vertex {}
-unsafe impl bytemuck::Zeroable for Vertex {}
 
 impl Vertex {
     fn desc<'a>() -> wgpu::VertexBufferDescriptor<'a> {
@@ -40,17 +37,13 @@ impl Vertex {
             stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::InputStepMode::Vertex,
             attributes: &[
-                wgpu::VertexAttributeDescriptor {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float3,
-                },
+                wgpu::VertexAttributeDescriptor { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float3 },
                 wgpu::VertexAttributeDescriptor {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float3,
-                }
-            ]
+                },
+            ],
         }
     }
 }
@@ -83,7 +76,7 @@ pub struct Client {
     swap_chain: SwapChain,
     size: dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline, // TODO should that go into a vector of some sort?
-    vertex_buffer: wgpu::Buffer, // TODO this should definitely not be here, but it's here for the experiments.
+    vertex_buffer: wgpu::Buffer,           // TODO this should definitely not be here, but it's here for the experiments.
 
     // Egui stuff.
     platform: Platform,
@@ -143,65 +136,49 @@ impl Client {
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
-                push_constant_ranges: &[],
-            });
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
 
         let vs_module = device.create_shader_module(ShaderModuleSource::SpirV(Cow::Borrowed(VERTEX_SHADER)));
         let fs_module = device.create_shader_module(ShaderModuleSource::SpirV(Cow::Borrowed(FRAGMENT_SHADER)));
-            
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
-                module: &vs_module,
-                entry_point: "main",
-            },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                module: &fs_module,
-                entry_point: "main",
+            vertex_stage: wgpu::ProgrammableStageDescriptor { module: &vs_module, entry_point: "main" },
+            fragment_stage: Some(wgpu::ProgrammableStageDescriptor { module: &fs_module, entry_point: "main" }),
+            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::Back,
+                depth_bias: 0,
+                depth_bias_slope_scale: 0.0,
+                depth_bias_clamp: 0.0,
+                clamp_depth: false,
             }),
-            rasterization_state: Some(
-                wgpu::RasterizationStateDescriptor {
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: wgpu::CullMode::Back,
-                    depth_bias: 0,
-                    depth_bias_slope_scale: 0.0,
-                    depth_bias_clamp: 0.0,
-                    clamp_depth: false,
-                }
-            ),
-            color_states: &[
-                wgpu::ColorStateDescriptor {
-                    format: sc_desc.format,
-                    color_blend: wgpu::BlendDescriptor::REPLACE,
-                    alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                    write_mask: wgpu::ColorWrite::ALL,
-                },
-            ],
+            color_states: &[wgpu::ColorStateDescriptor {
+                format: sc_desc.format,
+                color_blend: wgpu::BlendDescriptor::REPLACE,
+                alpha_blend: wgpu::BlendDescriptor::REPLACE,
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
             primitive_topology: wgpu::PrimitiveTopology::TriangleList,
             depth_stencil_state: None,
             vertex_state: wgpu::VertexStateDescriptor {
                 index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[
-                    Vertex::desc(),
-                ],
+                vertex_buffers: &[Vertex::desc()],
             },
             sample_count: 1,
             sample_mask: !0,
             alpha_to_coverage_enabled: false,
         });
 
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(VERTICES),
-                usage: wgpu::BufferUsage::VERTEX,
-            }
-        );
-
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsage::VERTEX,
+        });
 
         // Grab arguments provided from the command line.
         let arguments: Arguments = argh::from_env();
@@ -251,7 +228,6 @@ impl Client {
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
-
         self.platform.handle_event(event);
         // TODO update time.
 
@@ -271,7 +247,6 @@ impl Client {
                 _ => None,
             },
             Event::RedrawRequested(_) => {
-
                 let time = chrono::Local::now().time();
                 let time_delta = time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64);
                 self.platform.update_time(time_delta);
@@ -309,9 +284,8 @@ impl Client {
         match frame {
             Ok(frame) => {
                 let frame = frame.output;
-                                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("encoder"),
-                });
+                let mut encoder =
+                    self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
 
                 // Render UI
 
@@ -331,33 +305,21 @@ impl Client {
                 self.egui_rpass.update_texture(&self.device, &self.queue, &self.platform.context().texture());
                 self.egui_rpass.update_buffers(&mut self.device, &mut self.queue, &paint_jobs, &screen_descriptor);
 
-                self.egui_rpass.execute(
-                    &mut encoder,
-                    &frame.view,
-                    &paint_jobs,
-                    &screen_descriptor,
-                    Some(wgpu::Color::BLACK),
-                );
+                self.egui_rpass.execute(&mut encoder, &frame.view, &paint_jobs, &screen_descriptor, Some(wgpu::Color::BLACK));
 
                 // Render World.
                 {
                     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        color_attachments: &[
-                            wgpu::RenderPassColorAttachmentDescriptor {
-                                attachment: &frame.view,
-                                resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Load,
-                                    store: true,
-                                }
-                            }
-                        ],
+                        color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                            attachment: &frame.view,
+                            resolve_target: None,
+                            ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: true },
+                        }],
                         depth_stencil_attachment: None,
                     });
-                
                     render_pass.set_pipeline(&self.render_pipeline);
                     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                    render_pass.draw(0..VERTICES.len() as u32, 0..1); 
+                    render_pass.draw(0..VERTICES.len() as u32, 0..1);
                 }
 
                 self.queue.submit(std::iter::once(encoder.finish()));

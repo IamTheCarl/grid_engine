@@ -9,4 +9,4 @@ egui = { git = "https://github.com/emilk/egui" }
 codegen-units = 1
 incremental = false
 lto = true
-opt-level=3
+opt-level = 3

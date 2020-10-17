@@ -29,6 +29,8 @@ wgpu = "0.6.0"
 winit = "0.23.0"
 chrono = "0.4.19"
 bytemuck = "1.4.1"
+nalgebra = "0.22.1"
+bytemuck_derive = "1.0.0"
 
 [target.'cfg(target_os = "macos")'.dependencies.backend]
 package = "gfx-backend-metal"
