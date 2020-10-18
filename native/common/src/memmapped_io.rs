@@ -91,6 +91,8 @@ macro_rules! implement_integer_type {
 }
 
 // We use a macro to do this because it saves me a lot of work.
+implement_integer_type!(MMappedU8, MMappedU8Accessor, u8);
+implement_integer_type!(MMappedI8, MMappedI8Accessor, i8);
 implement_integer_type!(MMappedU16, MMappedU16Accessor, u16);
 implement_integer_type!(MMappedI16, MMappedI16Accessor, i16);
 implement_integer_type!(MMappedU32, MMappedU32Accessor, u32);
