@@ -24,7 +24,7 @@ macro_rules! implement_integer_type {
             }
 
             /// Get an immutable accessor for this data.
-            pub fn access_mut<'b>(&'b mut self) -> $accessor_name<'a, 'b> {
+            pub fn access_mut(&mut self) -> $accessor_name<'_, 'a> {
                 $accessor_name::new(self)
             }
 
@@ -111,10 +111,13 @@ mod test {
         let read = reference.read();
         assert_eq!(read, 0x0201u16);
 
-        let mut access = reference.access_mut();
-        assert_eq!(access, 0x0201u16);
-        *access = 0x0102u16;
-        assert_eq!(access, 0x0102u16);
+        {
+            let mut access = reference.access_mut();
+            assert_eq!(*access, 0x0201u16);
+            *access = 0x0102u16;
+            assert_eq!(*access, 0x0102u16);
+        }
+
         let read = reference.read();
         assert_eq!(read, 0x0102u16);
 
