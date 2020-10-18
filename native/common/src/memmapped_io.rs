@@ -14,12 +14,13 @@ macro_rules! implement_integer_type {
         /// matter what the architecture natively supports. The intended use for this is accessing data in
         /// memory mapped files.
         pub struct $struct_name<'a> {
-            bytes: &'a mut [u8; std::mem::size_of::<$type>()],
+            bytes: &'a mut [u8],
         }
 
         impl<'a> $struct_name<'a> {
             /// Construct a new instance of the MMapped referenced to the memory pointed to by bytes.
-            pub fn new(bytes: &'a mut [u8; std::mem::size_of::<$type>()]) -> Self {
+            pub fn new(bytes: &'a mut [u8]) -> Self {
+                assert!(bytes.len() == std::mem::size_of::<$type>(), "Array of wrong size was provided.");
                 Self { bytes }
             }
 
@@ -30,7 +31,9 @@ macro_rules! implement_integer_type {
 
             /// Just read the value stored at that point in memory.
             pub fn read(&self) -> $type {
-                <$type>::from_le_bytes(self.bytes.clone())
+                let mut bytes = [0u8; std::mem::size_of::<$type>()];
+                bytes.clone_from_slice(self.bytes);
+                <$type>::from_le_bytes(bytes)
             }
         }
 
@@ -56,8 +59,11 @@ macro_rules! implement_integer_type {
 
         impl<'a, 'b> $accessor_name<'a, 'b> {
             fn new(owner: &'a mut $struct_name<'b>) -> Self {
+                let mut bytes = [0u8; std::mem::size_of::<$type>()];
+                bytes.clone_from_slice(owner.bytes);
+
                 // We get a local copy for faster manipulation.
-                let local_copy = <$type>::from_le_bytes(owner.bytes.clone());
+                let local_copy = <$type>::from_le_bytes(bytes);
                 Self { owner, local_copy }
             }
         }
@@ -78,7 +84,7 @@ macro_rules! implement_integer_type {
         impl<'a, 'b> std::ops::Drop for $accessor_name<'a, 'b> {
             fn drop(&mut self) {
                 // When we drop, we write our value to our owner.
-                *self.owner.bytes = self.local_copy.to_le_bytes();
+                self.owner.bytes.clone_from_slice(&self.local_copy.to_le_bytes());
             }
         }
     };
@@ -122,5 +128,16 @@ mod test {
         assert_eq!(read, 0x0102u16);
 
         assert_eq!(data, [0x02u8, 0x01u8]);
+    }
+
+    #[test]
+    fn read_two() {
+        let mut data = [0x01u8, 0x02u8, 0x03u8, 0x04u8];
+        let (half_a, half_b) = data.split_at_mut(2);
+        let reference_a = MMappedU16::new(half_a);
+        let reference_b = MMappedU16::new(half_b);
+
+        assert_eq!(reference_a.read(), 0x0201u16);
+        assert_eq!(reference_b.read(), 0x0403u16);
     }
 }
