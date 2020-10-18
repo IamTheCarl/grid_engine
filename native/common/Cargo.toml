@@ -26,4 +26,5 @@ sys-info = "0.7.0"
 threadpool = "1.8.1" # TODO Remove that once you cleanup the scheduler.
 uuid = { version = "0.8.1", features = ["v1", "serde"] } 
 wasmtime = "0.20.0" 
-zip = { version = "0.5.8", features = ["bzip2"] }
+zip = { version = "0.5.8", features = ["bzip2"] } 
+goods = "0.5.3"
