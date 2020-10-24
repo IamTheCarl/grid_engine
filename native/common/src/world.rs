@@ -170,11 +170,9 @@ impl ChunkIndex {
     }
 
     fn create_chunk_key(x: i16, y: i16, z: i16) -> u64 {
-        // let x = x.to_le_bytes();
-        // let y = y.to_le_bytes();
-        // let z = z.to_le_bytes();
-        // u64::from_le_bytes([x[0], x[1], y[0], y[1], x[0], z[1], 0x00u8, 0x00u8])
-
+        // We group bits of the three axis together so that the more significant bits are on the left and the less significant are on the
+        // right. This improves our chances of physically close chunks are close in the binary tree, improving our iteration speed when
+        // requesting a range.
         fn spread_bits(input: i16) -> u64 {
             let mut input = input as u64 & 0x000000000000FFFF;
             let magic_numbers = [
