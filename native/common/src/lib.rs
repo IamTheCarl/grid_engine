@@ -10,7 +10,6 @@ pub use time::*;
 
 pub mod modules;
 // pub mod networking;
-pub mod memmapped_io;
 pub mod scheduler;
 pub mod wasm;
 pub mod world;

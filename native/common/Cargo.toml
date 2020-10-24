@@ -12,7 +12,7 @@ laminar = "0.4.0"
 lazy_static = "1.4.0" 
 legion = "0.3.1" 
 log = "0.4.11" 
-memmap = "0.7.0" 
+mapr = "0.8.0" 
 nalgebra = "0.22.0" 
 num-traits = "0.2.12" 
 os_info = "3.0.0" 
@@ -27,4 +27,7 @@ threadpool = "1.8.1" # TODO Remove that once you cleanup the scheduler.
 uuid = { version = "0.8.1", features = ["v1", "serde"] } 
 wasmtime = "0.20.0" 
 zip = { version = "0.5.8", features = ["bzip2"] } 
-goods = "0.5.3"
+goods = "0.5.3" 
+
+[dev-dependencies]
+tempfile = "3.1.0"
