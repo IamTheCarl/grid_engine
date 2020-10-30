@@ -44,7 +44,7 @@ pub struct TerrainDiskStorage {
     index_file: File,
     chunk_file: File,
     loaded_nodes: HashMap<NodePointer, IndexNode>,
-    // TODO keep the chunks loaded in here too, that way we can make all functions on this interface safe.
+    loaded_chunks: HashMap<ChunkKey, Chunk>,
 }
 
 impl TerrainDiskStorage {
@@ -54,33 +54,28 @@ impl TerrainDiskStorage {
     pub fn initialize(mut index_file: File, chunk_file: File) -> Result<TerrainDiskStorage> {
         // TODO lock the files.
 
+        // Get the length of the file real quick.
         let index_file_length = index_file.seek(SeekFrom::End(0))?;
+        index_file.seek(SeekFrom::Start(0))?;
+
+        // Create the container. We may need to create a root node for the index in a moment.
+        let mut index =
+            TerrainDiskStorage { index_file, chunk_file, loaded_nodes: HashMap::new(), loaded_chunks: HashMap::new() };
         if index_file_length == 0 {
             // This is a new index. We must create a root node for it.
             // No need to seek back to the beginning, because this happens to also be it.
-
-            // Create the index, with no root node. We'll add that in a moment.
-            let mut index = TerrainDiskStorage { index_file, chunk_file, loaded_nodes: HashMap::new() };
             let root = index.new_node()?;
             debug_assert!(root.0 == 0);
-
-            Ok(index)
         } else {
             // Already created. Cool.
-
-            // Seek back to the start and then return the struct.
-            index_file.seek(SeekFrom::Start(0))?;
-            Ok(TerrainDiskStorage { index_file, chunk_file, loaded_nodes: HashMap::new() })
         }
+
+        Ok(index)
     }
 
     /// Gets chunks within a range. It is an O(n) operation, but it should be a little faster than just calling
     /// the get_chunk function repeatedly. Note that for both the high and low range, this is inclusive.
-    ///
-    /// ## Safety
-    ///
-    /// See the function get_chunk() for more information on safety when fetching chunks from the file.
-    pub unsafe fn get_chunks_in_range(&mut self, low: (i16, i16, i16), high: (i16, i16, i16)) -> Result<ChunkIterator> {
+    pub fn get_chunks_in_range(&mut self, low: (i16, i16, i16), high: (i16, i16, i16)) -> Result<ChunkIterator> {
         // Low must be low, and high must be high.
         debug_assert!(low.0 <= high.0);
         debug_assert!(low.1 <= high.1);
@@ -92,17 +87,21 @@ impl TerrainDiskStorage {
     /// Will get a single chunk at the specified chunk coordinates. Search time is O(1).
     /// If the chunk does not exist, it will be created and then returned. It will not be populated with
     /// content.
-    ///
-    /// ## Safety
-    ///
-    /// This function will make no effort to prevent you from loading a chunk twice. On the back end, chunks
-    /// use mapped memory for file IO. This is very fast, but it means that you can end up with mutable aliasing
-    /// if you load a chunk twice.
-    pub unsafe fn get_chunk(&mut self, x: i16, y: i16, z: i16) -> Result<Chunk> {
+    pub fn get_chunk(&mut self, x: i16, y: i16, z: i16) -> Result<&Chunk> {
         let key = Self::create_chunk_key(x, y, z);
         let chunk_address = self.get_chunk_address(key).context("Error while indexing chunk.")?;
 
-        Chunk::load(&self.chunk_file, x, y, z, chunk_address).context("Error while loading chunk.")
+        // First see if the chunk is already loaded.
+        let chunk = self.loaded_chunks.entry(key);
+
+        use std::collections::hash_map::Entry;
+
+        match chunk {
+            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Vacant(entry) => Ok(entry.insert(unsafe {
+                Chunk::load(&self.chunk_file, x, y, z, chunk_address).context("Error while loading chunk.")
+            }?)),
+        }
     }
 
     /// Will flush all terrain index data to the hard drive.
@@ -324,7 +323,7 @@ pub struct ChunkIterator<'a> {
 }
 
 impl<'a> ChunkIterator<'a> {
-    unsafe fn new(low: (i16, i16, i16), high: (i16, i16, i16), storage: &'a mut TerrainDiskStorage) -> ChunkIterator {
+    fn new(low: (i16, i16, i16), high: (i16, i16, i16), storage: &'a mut TerrainDiskStorage) -> ChunkIterator {
         ChunkIterator { high, low, index: low, storage }
     }
 
@@ -361,29 +360,28 @@ impl<'a> ChunkIterator<'a> {
     }
 }
 
-impl<'a> std::iter::Iterator for ChunkIterator<'a> {
-    type Item = Result<Chunk>;
+// impl<'a> std::iter::Iterator for ChunkIterator<'a> {
+//     type Item = Result<&'a Chunk>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO right now this is just using the naive approach of indexing each chunk individually.
-        // Try and make it a little smarter.
+//     fn next(&mut self) -> Option<Self::Item> {
+//         // TODO right now this is just using the naive approach of indexing each chunk individually.
+//         // Try and make it a little smarter.
 
-        // This dimension will exceed the high range when we are finished, so we can use it as a way to more quickly check if we are finished.
-        if self.index.2 <= self.high.2 {
-            // Get the chunk, but don't return it immediately. We need to increment our index first.
-            // This is safe because creating this iterator in the first place is unsafe.
-            let result = unsafe { self.storage.get_chunk(self.index.0, self.index.1, self.index.2) };
+//         // This dimension will exceed the high range when we are finished, so we can use it as a way to more quickly check if we are finished.
+//         if self.index.2 <= self.high.2 {
+//             // Get the chunk, but don't return it immediately. We need to increment our index first.
+//             let result = self.storage.get_chunk(self.index.0, self.index.1, self.index.2);
 
-            self.increment();
+//             self.increment();
 
-            // Now we can return the result.
-            Some(result)
-        } else {
-            // No more left. We're done.
-            None
-        }
-    }
-}
+//             // Now we can return the result.
+//             Some(result)
+//         } else {
+//             // No more left. We're done.
+//             None
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod test_fileformate {
@@ -394,7 +392,7 @@ mod test_fileformate {
     #[test]
     fn insert_single_chunk_new_file() {
         let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
-        let chunk = unsafe { index.get_chunk(0, 0, 0) }.unwrap();
+        let chunk = index.get_chunk(0, 0, 0).unwrap();
     }
 
     #[test]
