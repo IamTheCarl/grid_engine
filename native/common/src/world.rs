@@ -14,9 +14,8 @@ use std::io::SeekFrom;
 // That makes the chunk 8Kb in length.
 const CHUNK_LENGTH: u64 = 16 * 16 * 16 * 2;
 
-// A node contains 16 bits of addressable pointers, which point to more nodes, or chunks.
-// TODO bring this down to 256*8. It will make a single index a little slower but reduce the minimal file size significantly.
-const NODE_LENGTH: u64 = 65536 * 8;
+// A node contains 8 bits of addressable pointers, which point to more nodes, or chunks.
+const NODE_LENGTH: u64 = 256 * 8;
 
 create_file_pointer_type!(NodePointer);
 create_file_pointer_type!(ChunkKey);
@@ -129,18 +128,33 @@ impl TerrainDiskStorage {
         Ok(())
     }
 
+    /// Returns the length of the chunk file in bytes.
+    pub fn get_chunk_file_length(&self) -> Result<u64> {
+        let mut chunk_file = self.chunk_file.lock();
+        let length = chunk_file.seek(SeekFrom::End(0))?;
+        chunk_file.seek(SeekFrom::Start(0))?;
+
+        Ok(length)
+    }
+
+    /// Returns the length of the index file in bytes.
+    pub fn get_index_file_length(&self) -> Result<u64> {
+        let mut index_file = self.index_file.lock();
+        let length = index_file.seek(SeekFrom::End(0))?;
+        index_file.seek(SeekFrom::Start(0))?;
+
+        Ok(length)
+    }
+
     fn get_chunk_address(&self, key: ChunkKey) -> Result<ChunkPointer> {
         let key_bytes = key.to_le_bytes();
-        let layer1_key = u16::from_le_bytes(key_bytes[4..6].try_into().expect("Didn't get enough bytes for a key."));
-        let layer2_key = u16::from_le_bytes(key_bytes[2..4].try_into().expect("Didn't get enough bytes for a key."));
-        let chunk_key = u16::from_le_bytes(key_bytes[0..2].try_into().expect("Didn't get enough bytes for a key."));
-
-        let keys = [layer1_key, layer2_key];
+        let keys = &key_bytes[3..7];
+        let chunk_key = key_bytes[7];
 
         // We start with the root node.
         let mut node_address = NodePointer(0);
 
-        for key in &keys {
+        for key in keys {
             // Try to get the node address.
             let next_node_address = self.get_node(node_address, |root| Ok(root.get_pointer(*key)))?;
 
@@ -153,7 +167,7 @@ impl TerrainDiskStorage {
 
                 // Make sure to add that to the root node;
                 self.get_node(node_address, |root| {
-                    root.set_pointer(layer1_key, address);
+                    root.set_pointer(*key, address);
                     Ok(())
                 })?;
 
@@ -196,13 +210,13 @@ impl TerrainDiskStorage {
             pointer = 0;
         }
 
-        debug_assert!(pointer & 0xF == 0);
+        debug_assert!(pointer & 0xFFF == 0);
 
         // Now make the file longer to squeeze our node in.
         chunk_file.set_len(pointer + CHUNK_LENGTH)?;
         let pointer = ChunkPointer(pointer >> 4);
 
-        // FIXME this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
+        // TODO this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
         *self.chunk_memory.write() =
             unsafe { mapr::MmapMut::map_mut(&chunk_file) }.context("Error while mapping index memory.")?;
 
@@ -220,9 +234,9 @@ impl TerrainDiskStorage {
         let pointer = NodePointer(pointer);
 
         // This fails if we created a non-memory alined pointer.
-        debug_assert!(pointer.0 & 0xFFFF == 0);
+        debug_assert!(pointer.0 & 0xFF == 0);
 
-        // FIXME this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
+        // TODO this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
         *self.index_memory.write() =
             unsafe { mapr::MmapMut::map_mut(&index_file) }.context("Error while mapping index memory.")?;
 
@@ -275,14 +289,14 @@ struct IndexNode<'a> {
 impl<'a> IndexNode<'a> {
     fn load(memory: &'a RwLock<mapr::MmapMut>, offset: u64) -> Result<IndexNode> {
         // Enforce that nodes are memory alined.
-        if offset & 0xFFFF == 0 {
+        if offset & 0xFF == 0 {
             Ok(IndexNode { memory, file_offset: offset as usize })
         } else {
             Err(anyhow!("Index Node is not memory alined: {:016x}", offset))
         }
     }
 
-    fn get_pointer(&self, key: u16) -> Option<NodePointer> {
+    fn get_pointer(&self, key: u8) -> Option<NodePointer> {
         let offset_key = self.file_offset + key as usize * 8;
         let pointer = u64::from_le_bytes(
             self.memory.read()[offset_key..offset_key + 8].try_into().expect("Not enough bytes to build file pointer."),
@@ -297,7 +311,7 @@ impl<'a> IndexNode<'a> {
         }
     }
 
-    fn set_pointer(&self, key: u16, address: NodePointer) {
+    fn set_pointer(&self, key: u8, address: NodePointer) {
         let offset_key = self.file_offset + key as usize * 8;
         // The bitwise or is so that even a pointer of zero is always non-zero.
         let address = address.0 | 0x8000_0000_0000_0000;
@@ -320,12 +334,15 @@ mod test_fileformate {
                 Ok(())
             })
             .unwrap();
+
+        // Should be 5 nodes.
+        assert_eq!(index.get_index_file_length().unwrap(), 10240);
     }
 
     #[test]
     fn iterate_chunks_new_file() {
         let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
-        index.get_chunks_in_range((-20, -20, -20), (20, 20, 20), |_chunk| Ok(())).unwrap();
+        index.get_chunks_in_range((-50, -50, -50), (50, 50, 50), |_chunk| Ok(())).unwrap();
     }
 
     #[test]
