@@ -5,42 +5,36 @@
 
 use antidote::{Mutex, RwLock};
 use anyhow::{anyhow, Context, Result};
-use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fs::File;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 // A chunk is 16x16x16 blocks in size, and a block consists of two bytes.
 // That makes the chunk 8Kb in length.
 const CHUNK_LENGTH: u64 = 16 * 16 * 16 * 2;
 
 // A node contains 16 bits of addressable pointers, which point to more nodes, or chunks.
+// TODO bring this down to 256*8. It will make a single index a little slower but reduce the minimal file size significantly.
 const NODE_LENGTH: u64 = 65536 * 8;
 
 create_file_pointer_type!(NodePointer);
 create_file_pointer_type!(ChunkKey);
 create_file_pointer_type!(ChunkPointer);
 
-pub struct Chunk {
-    memory: mapr::MmapMut,
+pub struct Chunk<'a> {
+    memory: &'a RwLock<mapr::MmapMut>,
+    address: usize,
     x: i16,
     y: i16,
     z: i16,
 }
 
-impl Chunk {
-    unsafe fn load(file: &File, x: i16, y: i16, z: i16, address: ChunkPointer) -> Result<Chunk> {
+impl<'a> Chunk<'a> {
+    fn load(memory: &'a RwLock<mapr::MmapMut>, x: i16, y: i16, z: i16, address: ChunkPointer) -> Result<Chunk> {
         // Get the true address.
         let address = address.0 << 4;
-
-        // Set the offset of our window into the file.
-        let mut mmap_options = mapr::MmapOptions::new();
-        mmap_options.offset(address);
-        mmap_options.len(CHUNK_LENGTH as usize);
-
-        Ok(Chunk { memory: mmap_options.map_mut(file)?, x, y, z })
+        Ok(Chunk { memory, address: address as usize, x, y, z })
     }
 }
 
@@ -49,8 +43,8 @@ impl Chunk {
 pub struct TerrainDiskStorage {
     index_file: Mutex<File>,
     chunk_file: Mutex<File>,
-    loaded_nodes: RwLock<HashMap<NodePointer, IndexNode>>,
-    loaded_chunks: RwLock<HashMap<ChunkKey, RwLock<Chunk>>>,
+    index_memory: RwLock<mapr::MmapMut>,
+    chunk_memory: RwLock<mapr::MmapMut>,
 }
 
 // Want to keep this thread safe.
@@ -60,35 +54,43 @@ impl TerrainDiskStorage {
     /// Provide a file handles for both the index file and the chunk file and this will be able to load and store
     /// terrain chunk data in them. Note that if the index file is uninitialized, this will go through the process of
     /// initializing them.
-    pub fn initialize(mut index_file: File, chunk_file: File) -> Result<TerrainDiskStorage> {
+    pub fn initialize(mut index_file: File, mut chunk_file: File) -> Result<TerrainDiskStorage> {
         // TODO lock the files.
 
-        // Get the length of the file real quick.
+        // Get the length of the index file.
         let index_file_length = index_file.seek(SeekFrom::End(0))?;
         index_file.seek(SeekFrom::Start(0))?;
+        if index_file_length == 0 {
+            // We cannot have a non-zero length for a memory mapped file, so allocate memory for the root index node.
+            index_file.set_len(NODE_LENGTH)?;
+        }
 
-        // Create the container. We may need to create a root node for the index in a moment.
+        // Get the length of the chunk chunk file.
+        let chunk_file_length = chunk_file.seek(SeekFrom::End(0))?;
+        chunk_file.seek(SeekFrom::Start(0))?;
+        if chunk_file_length == 0 {
+            // We cannot have a non-zero length for a memory mapped file, so allocate memory for the root index node.
+            chunk_file.set_len(CHUNK_LENGTH)?;
+        }
+
+        let index_memory =
+            RwLock::new(unsafe { mapr::MmapMut::map_mut(&index_file) }.context("Error while mapping index memory.")?);
+        let chunk_memory =
+            RwLock::new(unsafe { mapr::MmapMut::map_mut(&chunk_file) }.context("Error while mapping chunk memory.")?);
+
         let index = TerrainDiskStorage {
             index_file: Mutex::new(index_file),
             chunk_file: Mutex::new(chunk_file),
-            loaded_nodes: RwLock::new(HashMap::new()),
-            loaded_chunks: RwLock::new(HashMap::new()),
+            index_memory,
+            chunk_memory,
         };
-        if index_file_length == 0 {
-            // This is a new index. We must create a root node for it.
-            // No need to seek back to the beginning, because this happens to also be it.
-            let root = index.new_node()?;
-            debug_assert!(root.0 == 0);
-        } else {
-            // Already created. Cool.
-        }
 
         Ok(index)
     }
 
     /// Gets chunks within a range. It is an O(n) operation, but it should be a little faster than just calling
     /// the get_chunk function repeatedly. Note that for both the high and low range, this is inclusive.
-    pub fn get_chunks_in_range<F: Fn(&RwLock<Chunk>) -> Result<()>>(
+    pub fn get_chunks_in_range<F: Fn(&Chunk) -> Result<()>>(
         &self, low: (i16, i16, i16), high: (i16, i16, i16), function: F,
     ) -> Result<()> {
         // Low must be low, and high must be high.
@@ -111,49 +113,18 @@ impl TerrainDiskStorage {
     /// Will get a single chunk at the specified chunk coordinates. Search time is O(1).
     /// If the chunk does not exist, it will be created and then returned. It will not be populated with
     /// content.
-    pub fn get_chunk<R, F: FnOnce(&RwLock<Chunk>) -> Result<R>>(&self, x: i16, y: i16, z: i16, function: F) -> Result<R> {
+    pub fn get_chunk<R, F: FnOnce(&Chunk) -> Result<R>>(&self, x: i16, y: i16, z: i16, function: F) -> Result<R> {
         let key = Self::create_chunk_key(x, y, z);
         let chunk_address = self.get_chunk_address(key).context("Error while indexing chunk.")?;
+        let chunk = Chunk::load(&self.chunk_memory, x, y, z, chunk_address).context("Error while loading chunk.")?;
 
-        // First see if the chunk is already loaded. Try to do this without a write lock.
-        let loaded_chunks = self.loaded_chunks.read();
-        let chunk = loaded_chunks.get(&key);
-
-        if let Some(chunk) = chunk {
-            // The chunk happened to be loaded already.
-            function(chunk)
-        } else {
-            // The chunk is not loaded. We must load it.
-
-            // We have to drop it or else we'll lock up when we try to get the write lock.
-            drop(loaded_chunks);
-
-            // We must load the chunk first.
-            use std::collections::hash_map::Entry;
-            let mut loaded_chunks = self.loaded_chunks.write();
-            let chunk = loaded_chunks.entry(key);
-            let chunk = match chunk {
-                Entry::Occupied(entry) => entry.into_mut(), // Somehow we loaded the chunk before we got our lock.
-                Entry::Vacant(entry) => entry.insert(RwLock::new(unsafe {
-                    // Load up the chunk now and add it to the loaded chunk map.
-                    Chunk::load(&self.chunk_file.lock(), x, y, z, chunk_address).context("Error while loading chunk.")?
-                })),
-            };
-
-            function(chunk)
-        }
+        function(&chunk)
     }
 
     /// Will flush all terrain index data to the hard drive.
     /// Will not flush chunk data to the hard drive.
-    pub fn flush(&self) -> Result<()> {
-        let loaded_nodes = self.loaded_nodes.read();
-
-        for (_key, node) in loaded_nodes.iter() {
-            if node.is_modified() {
-                node.flush()?;
-            }
-        }
+    pub fn flush_index(&self) -> Result<()> {
+        self.index_memory.read().flush()?;
 
         Ok(())
     }
@@ -162,53 +133,40 @@ impl TerrainDiskStorage {
         let key_bytes = key.to_le_bytes();
         let layer1_key = u16::from_le_bytes(key_bytes[4..6].try_into().expect("Didn't get enough bytes for a key."));
         let layer2_key = u16::from_le_bytes(key_bytes[2..4].try_into().expect("Didn't get enough bytes for a key."));
-        let layer3_key = u16::from_le_bytes(key_bytes[0..2].try_into().expect("Didn't get enough bytes for a key."));
+        let chunk_key = u16::from_le_bytes(key_bytes[0..2].try_into().expect("Didn't get enough bytes for a key."));
 
-        // Just a constant for code clarity.
-        let root_node_pointer = NodePointer(0);
-        // We start with the root and look for our first layer node.
-        let layer2_node_address = self.get_node(root_node_pointer, |root| Ok(root.get_pointer(layer1_key)))?;
+        let keys = [layer1_key, layer2_key];
 
-        let layer2_node_address = if let Some(address) = layer2_node_address {
-            // The node already exists! We'll just use this address then.
-            address
-        } else {
-            // The node does not exist. We must create it.
-            let address = self.new_node()?;
+        // We start with the root node.
+        let mut node_address = NodePointer(0);
 
-            // Make sure to add that to the root node;
-            self.get_node(root_node_pointer, |root| {
-                root.set_pointer(layer1_key, address);
-                Ok(())
-            })?;
+        for key in &keys {
+            // Try to get the node address.
+            let next_node_address = self.get_node(node_address, |root| Ok(root.get_pointer(*key)))?;
 
-            address
-        };
+            let next_node_address = if let Some(address) = next_node_address {
+                // The node already exists! We'll just use this address then.
+                address
+            } else {
+                // The node does not exist. We must create it.
+                let address = self.new_node()?;
 
-        let layer3_node_address = self.get_node(layer2_node_address, |node| {
+                // Make sure to add that to the root node;
+                self.get_node(node_address, |root| {
+                    root.set_pointer(layer1_key, address);
+                    Ok(())
+                })?;
+
+                address
+            };
+
+            // Step to the next node.
+            node_address = next_node_address;
+        }
+
+        let chunk_address = self.get_node(node_address, |node| {
             // We start with the root and look for our first layer node.
-            Ok(node.get_pointer(layer2_key))
-        })?;
-
-        let layer3_node_address = if let Some(address) = layer3_node_address {
-            // The node already exists! We'll just use this address then.
-            address
-        } else {
-            // The node does not exist. We must create it.
-            let address = self.new_node()?;
-
-            // Make sure to add that to the root node;
-            self.get_node(layer2_node_address, |node| {
-                node.set_pointer(layer2_key, address);
-                Ok(())
-            })?;
-
-            address
-        };
-
-        let chunk_address = self.get_node(layer3_node_address, |node| {
-            // We start with the root and look for our first layer node.
-            Ok(node.get_pointer(layer3_key))
+            Ok(node.get_pointer(chunk_key))
         })?;
 
         let chunk_address = if let Some(address) = chunk_address {
@@ -218,9 +176,9 @@ impl TerrainDiskStorage {
             // The chunk does not exist. We must create it.
             let address = self.new_chunk()?;
 
-            self.get_node(layer2_node_address, |node| {
+            self.get_node(node_address, |node| {
                 // We start with the root and look for our first layer node.
-                Ok(node.set_pointer(layer3_key, NodePointer(address.0)))
+                Ok(node.set_pointer(chunk_key, NodePointer(address.0)))
             })?;
 
             address
@@ -232,11 +190,21 @@ impl TerrainDiskStorage {
     fn new_chunk(&self) -> Result<ChunkPointer> {
         let mut chunk_file = self.chunk_file.lock();
         // Jump to the end.
-        let pointer = chunk_file.seek(SeekFrom::End(0))?;
+        let mut pointer = chunk_file.seek(SeekFrom::End(0))?;
+        if pointer == 1 {
+            // This is actually the first chunk. We set a brand new file to a length of 1 bytes so we can map it into memory.
+            pointer = 0;
+        }
+
+        debug_assert!(pointer & 0xF == 0);
 
         // Now make the file longer to squeeze our node in.
         chunk_file.set_len(pointer + CHUNK_LENGTH)?;
         let pointer = ChunkPointer(pointer >> 4);
+
+        // FIXME this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
+        *self.chunk_memory.write() =
+            unsafe { mapr::MmapMut::map_mut(&chunk_file) }.context("Error while mapping index memory.")?;
 
         Ok(pointer)
     }
@@ -251,36 +219,18 @@ impl TerrainDiskStorage {
         index_file.set_len(pointer + NODE_LENGTH)?;
         let pointer = NodePointer(pointer);
 
-        // We're probably about to need it, so go ahead and cache it.
-        // This is safe because we are creating a new node and know there are no other references to it in the file.
-        let node = unsafe { IndexNode::load(&index_file, pointer)? };
+        // This fails if we created a non-memory alined pointer.
+        debug_assert!(pointer.0 & 0xFFFF == 0);
 
-        {
-            let mut loaded_nodes = self.loaded_nodes.write();
-            loaded_nodes.insert(pointer, node);
-        }
+        // FIXME this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
+        *self.index_memory.write() =
+            unsafe { mapr::MmapMut::map_mut(&index_file) }.context("Error while mapping index memory.")?;
 
         Ok(pointer)
     }
 
     fn get_node<F: FnOnce(&IndexNode) -> Result<R>, R>(&self, pointer: NodePointer, function: F) -> Result<R> {
-        // We have to lock the node cache. Try not to hold on to that for very long.
-        let mut loaded_nodes = self.loaded_nodes.write();
-
-        let node = loaded_nodes.get(&pointer);
-
-        let node = if let Some(node) = node {
-            // The node is loaded. Cool.
-            node
-        } else {
-            // We need to load the node.
-            // TODO somehow we need to know which node to unload when we have too many loaded.
-            // This is safe because it's only unsafe if a node is loaded twice. We just checked that this node isn't already loaded.
-            let node = unsafe { IndexNode::load(&self.index_file.lock(), pointer)? };
-            // TODO turn this insert get into one step.
-            loaded_nodes.insert(pointer, node);
-            loaded_nodes.get_mut(&pointer).expect("Node that was just inserted somehow wasn't found.")
-        };
+        let node = IndexNode::load(&self.index_memory, *pointer).context("Error while fetching node.")?;
 
         // We can't safely return the node reference, so instead we call a provided function that will safely limit the lifetime of this reference.
         function(&node)
@@ -317,29 +267,30 @@ impl TerrainDiskStorage {
     }
 }
 
-struct IndexNode {
-    modified: AtomicBool,
-    memory: RwLock<mapr::MmapMut>,
+struct IndexNode<'a> {
+    memory: &'a RwLock<mapr::MmapMut>,
+    file_offset: usize,
 }
 
-impl IndexNode {
-    unsafe fn load(file: &File, address: NodePointer) -> Result<IndexNode> {
-        // Set the offset of our window into the file.
-        let mut mmap_options = mapr::MmapOptions::new();
-        mmap_options.offset(*address);
-        mmap_options.len(NODE_LENGTH as usize);
-
-        Ok(IndexNode { modified: AtomicBool::new(false), memory: RwLock::new(mmap_options.map_mut(file)?) })
+impl<'a> IndexNode<'a> {
+    fn load(memory: &'a RwLock<mapr::MmapMut>, offset: u64) -> Result<IndexNode> {
+        // Enforce that nodes are memory alined.
+        if offset & 0xFFFF == 0 {
+            Ok(IndexNode { memory, file_offset: offset as usize })
+        } else {
+            Err(anyhow!("Index Node is not memory alined: {:016x}", offset))
+        }
     }
 
     fn get_pointer(&self, key: u16) -> Option<NodePointer> {
-        let offset = key as usize * 8;
+        let offset_key = self.file_offset + key as usize * 8;
         let pointer = u64::from_le_bytes(
-            self.memory.read()[offset..offset + 8].try_into().expect("Not enough bytes to build file pointer."),
+            self.memory.read()[offset_key..offset_key + 8].try_into().expect("Not enough bytes to build file pointer."),
         );
 
         if pointer != 0 {
-            // We set the most significant bit to 1 so that even a pointer of zero appears as being set.
+            // When storing this, we set the most significant bit to 1 so that even a pointer of zero appears as being set.
+            // We don't want our caller to see that bit though, so clear it.
             Some(NodePointer(pointer & !0x8000_0000_0000_0000))
         } else {
             None
@@ -347,22 +298,10 @@ impl IndexNode {
     }
 
     fn set_pointer(&self, key: u16, address: NodePointer) {
-        let offset = key as usize * 8;
-        // The bitwise or is so that even a pointer of zero always is non-zero.
+        let offset_key = self.file_offset + key as usize * 8;
+        // The bitwise or is so that even a pointer of zero is always non-zero.
         let address = address.0 | 0x8000_0000_0000_0000;
-        self.memory.write()[offset..offset + 8].clone_from_slice(&address.to_le_bytes());
-        self.modified.store(true, Ordering::Relaxed);
-    }
-
-    fn is_modified(&self) -> bool {
-        self.modified.load(Ordering::Relaxed)
-    }
-
-    fn flush(&self) -> Result<()> {
-        self.memory.write().flush()?;
-        self.modified.store(false, Ordering::Relaxed);
-
-        Ok(())
+        self.memory.write()[offset_key..offset_key + 8].clone_from_slice(&address.to_le_bytes());
     }
 }
 
@@ -386,7 +325,7 @@ mod test_fileformate {
     #[test]
     fn iterate_chunks_new_file() {
         let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
-        index.get_chunks_in_range((-5, -5, -5), (5, 5, 5), |_chunk| Ok(())).unwrap();
+        index.get_chunks_in_range((-20, -20, -20), (20, 20, 20), |_chunk| Ok(())).unwrap();
     }
 
     #[test]
