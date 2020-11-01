@@ -34,6 +34,7 @@ antidote = "1.0.0"
 [dev-dependencies]
 tempfile = "3.1.0"
 criterion = "0.3.3"
+pprof = { version = "0.3.18", features = ["flamegraph"] }
 
 [[bench]]
 name = "benchmarks"
