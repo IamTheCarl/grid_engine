@@ -320,6 +320,7 @@ impl<'a> IndexNode<'a> {
 }
 
 #[cfg(test)]
+#[allow(soft_unstable)] // Lets us use benchmarks in stable. Expect this to break some day.
 mod test_fileformate {
 
     use super::*;
@@ -416,4 +417,22 @@ mod test_fileformate {
         assert_eq!(TerrainDiskStorage::create_chunk_key(0x0000, 0x0001, 0x0000), ChunkKey(0x0000000000000002));
         assert_eq!(TerrainDiskStorage::create_chunk_key(0x0000, 0x0000, 0x0001), ChunkKey(0x0000000000000001));
     }
+}
+
+#[cfg(benchmark)]
+mod benchmark {
+    use super::*;
+
+    use criterion::{criterion_group, criterion_main, Criterion};
+
+    pub fn chunk_iterate_fresh_file(c: &mut Criterion) {
+        c.bench_function("chunk iterate fresh file", |b| {
+            b.iter(|| {
+                let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
+                index.get_chunks_in_range((-50, -50, -50), (50, 50, 50), |_chunk| Ok(())).unwrap();
+            })
+        });
+    }
+    criterion_group!(benches, chunk_iterate);
+    criterion_main!(benches);
 }
