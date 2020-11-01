@@ -22,7 +22,7 @@ create_file_pointer_type!(ChunkKey);
 create_file_pointer_type!(ChunkPointer);
 
 pub struct Chunk<'a> {
-    memory: &'a RwLock<mapr::MmapMut>,
+    memory: &'a mapr::MmapMut,
     address: usize,
     x: i16,
     y: i16,
@@ -30,7 +30,7 @@ pub struct Chunk<'a> {
 }
 
 impl<'a> Chunk<'a> {
-    fn load(memory: &'a RwLock<mapr::MmapMut>, x: i16, y: i16, z: i16, address: ChunkPointer) -> Result<Chunk> {
+    fn load(memory: &'a mapr::MmapMut, x: i16, y: i16, z: i16, address: ChunkPointer) -> Result<Chunk> {
         // Get the true address.
         let address = address.0 << 4;
         Ok(Chunk { memory, address: address as usize, x, y, z })
@@ -40,10 +40,10 @@ impl<'a> Chunk<'a> {
 /// A struct that will store and fetch chunks. It will create new chunks if the chunk does not exist in the file,
 /// but it will not fill the chunk with content.
 pub struct TerrainDiskStorage {
-    index_file: Mutex<File>,
-    chunk_file: Mutex<File>,
-    index_memory: RwLock<mapr::MmapMut>,
-    chunk_memory: RwLock<mapr::MmapMut>,
+    index_file: File,
+    chunk_file: File,
+    index_memory: mapr::MmapMut,
+    chunk_memory: mapr::MmapMut,
 }
 
 // Want to keep this thread safe.
@@ -72,17 +72,10 @@ impl TerrainDiskStorage {
             chunk_file.set_len(CHUNK_LENGTH)?;
         }
 
-        let index_memory =
-            RwLock::new(unsafe { mapr::MmapMut::map_mut(&index_file) }.context("Error while mapping index memory.")?);
-        let chunk_memory =
-            RwLock::new(unsafe { mapr::MmapMut::map_mut(&chunk_file) }.context("Error while mapping chunk memory.")?);
+        let index_memory = unsafe { mapr::MmapMut::map_mut(&index_file) }.context("Error while mapping index memory.")?;
+        let chunk_memory = unsafe { mapr::MmapMut::map_mut(&chunk_file) }.context("Error while mapping chunk memory.")?;
 
-        let index = TerrainDiskStorage {
-            index_file: Mutex::new(index_file),
-            chunk_file: Mutex::new(chunk_file),
-            index_memory,
-            chunk_memory,
-        };
+        let index = TerrainDiskStorage { index_file, chunk_file, index_memory, chunk_memory };
 
         Ok(index)
     }
@@ -90,7 +83,7 @@ impl TerrainDiskStorage {
     /// Gets chunks within a range. It is an O(n) operation, but it should be a little faster than just calling
     /// the get_chunk function repeatedly. Note that for both the high and low range, this is inclusive.
     pub fn get_chunks_in_range<F: Fn(&Chunk) -> Result<()>>(
-        &self, low: (i16, i16, i16), high: (i16, i16, i16), function: F,
+        &mut self, low: (i16, i16, i16), high: (i16, i16, i16), function: F,
     ) -> Result<()> {
         // Low must be low, and high must be high.
         debug_assert!(low.0 <= high.0);
@@ -112,7 +105,7 @@ impl TerrainDiskStorage {
     /// Will get a single chunk at the specified chunk coordinates. Search time is O(1).
     /// If the chunk does not exist, it will be created and then returned. It will not be populated with
     /// content.
-    pub fn get_chunk<R, F: FnOnce(&Chunk) -> Result<R>>(&self, x: i16, y: i16, z: i16, function: F) -> Result<R> {
+    pub fn get_chunk<R, F: FnOnce(&Chunk) -> Result<R>>(&mut self, x: i16, y: i16, z: i16, function: F) -> Result<R> {
         let key = Self::create_chunk_key(x, y, z);
         let chunk_address = self.get_chunk_address(key).context("Error while indexing chunk.")?;
         let chunk = Chunk::load(&self.chunk_memory, x, y, z, chunk_address).context("Error while loading chunk.")?;
@@ -123,30 +116,28 @@ impl TerrainDiskStorage {
     /// Will flush all terrain index data to the hard drive.
     /// Will not flush chunk data to the hard drive.
     pub fn flush_index(&self) -> Result<()> {
-        self.index_memory.read().flush()?;
+        self.index_memory.flush()?;
 
         Ok(())
     }
 
     /// Returns the length of the chunk file in bytes.
-    pub fn get_chunk_file_length(&self) -> Result<u64> {
-        let mut chunk_file = self.chunk_file.lock();
-        let length = chunk_file.seek(SeekFrom::End(0))?;
-        chunk_file.seek(SeekFrom::Start(0))?;
+    pub fn get_chunk_file_length(&mut self) -> Result<u64> {
+        let length = self.chunk_file.seek(SeekFrom::End(0))?;
+        self.chunk_file.seek(SeekFrom::Start(0))?;
 
         Ok(length)
     }
 
     /// Returns the length of the index file in bytes.
-    pub fn get_index_file_length(&self) -> Result<u64> {
-        let mut index_file = self.index_file.lock();
-        let length = index_file.seek(SeekFrom::End(0))?;
-        index_file.seek(SeekFrom::Start(0))?;
+    pub fn get_index_file_length(&mut self) -> Result<u64> {
+        let length = self.index_file.seek(SeekFrom::End(0))?;
+        self.index_file.seek(SeekFrom::Start(0))?;
 
         Ok(length)
     }
 
-    fn get_chunk_address(&self, key: ChunkKey) -> Result<ChunkPointer> {
+    fn get_chunk_address(&mut self, key: ChunkKey) -> Result<ChunkPointer> {
         let key_bytes = key.to_le_bytes();
         let keys = &key_bytes[3..7];
         let chunk_key = key_bytes[7];
@@ -201,10 +192,9 @@ impl TerrainDiskStorage {
         Ok(chunk_address)
     }
 
-    fn new_chunk(&self) -> Result<ChunkPointer> {
-        let mut chunk_file = self.chunk_file.lock();
+    fn new_chunk(&mut self) -> Result<ChunkPointer> {
         // Jump to the end.
-        let mut pointer = chunk_file.seek(SeekFrom::End(0))?;
+        let mut pointer = self.chunk_file.seek(SeekFrom::End(0))?;
         if pointer == 1 {
             // This is actually the first chunk. We set a brand new file to a length of 1 bytes so we can map it into memory.
             pointer = 0;
@@ -213,41 +203,37 @@ impl TerrainDiskStorage {
         debug_assert!(pointer & 0xFFF == 0);
 
         // Now make the file longer to squeeze our node in.
-        chunk_file.set_len(pointer + CHUNK_LENGTH)?;
+        self.chunk_file.set_len(pointer + CHUNK_LENGTH)?;
         let pointer = ChunkPointer(pointer >> 4);
 
         // TODO this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
-        *self.chunk_memory.write() =
-            unsafe { mapr::MmapMut::map_mut(&chunk_file) }.context("Error while mapping index memory.")?;
+        self.chunk_memory = unsafe { mapr::MmapMut::map_mut(&self.chunk_file) }.context("Error while mapping index memory.")?;
 
         Ok(pointer)
     }
 
-    fn new_node(&self) -> Result<NodePointer> {
-        let mut index_file = self.index_file.lock();
-
+    fn new_node(&mut self) -> Result<NodePointer> {
         // Jump to the end.
-        let pointer = index_file.seek(SeekFrom::End(0))?;
+        let pointer = self.index_file.seek(SeekFrom::End(0))?;
 
         // Now make the file longer to squeeze our node in.
-        index_file.set_len(pointer + NODE_LENGTH)?;
+        self.index_file.set_len(pointer + NODE_LENGTH)?;
         let pointer = NodePointer(pointer);
 
         // This fails if we created a non-memory alined pointer.
         debug_assert!(pointer.0 & 0xFF == 0);
 
         // TODO this may be very slow. Benchmarking is required, but if it is, then we need to resize this file with a smarter strategy.
-        *self.index_memory.write() =
-            unsafe { mapr::MmapMut::map_mut(&index_file) }.context("Error while mapping index memory.")?;
+        self.index_memory = unsafe { mapr::MmapMut::map_mut(&self.index_file) }.context("Error while mapping index memory.")?;
 
         Ok(pointer)
     }
 
-    fn get_node<F: FnOnce(&IndexNode) -> Result<R>, R>(&self, pointer: NodePointer, function: F) -> Result<R> {
-        let node = IndexNode::load(&self.index_memory, *pointer).context("Error while fetching node.")?;
+    fn get_node<F: FnOnce(&mut IndexNode) -> Result<R>, R>(&mut self, pointer: NodePointer, function: F) -> Result<R> {
+        let mut node = IndexNode::load(&mut self.index_memory, *pointer).context("Error while fetching node.")?;
 
         // We can't safely return the node reference, so instead we call a provided function that will safely limit the lifetime of this reference.
-        function(&node)
+        function(&mut node)
     }
 
     fn create_chunk_key(x: i16, y: i16, z: i16) -> ChunkKey {
@@ -282,12 +268,12 @@ impl TerrainDiskStorage {
 }
 
 struct IndexNode<'a> {
-    memory: &'a RwLock<mapr::MmapMut>,
+    memory: &'a mut mapr::MmapMut,
     file_offset: usize,
 }
 
 impl<'a> IndexNode<'a> {
-    fn load(memory: &'a RwLock<mapr::MmapMut>, offset: u64) -> Result<IndexNode> {
+    fn load(memory: &'a mut mapr::MmapMut, offset: u64) -> Result<IndexNode> {
         // Enforce that nodes are memory alined.
         if offset & 0xFF == 0 {
             Ok(IndexNode { memory, file_offset: offset as usize })
@@ -299,7 +285,7 @@ impl<'a> IndexNode<'a> {
     fn get_pointer(&self, key: u8) -> Option<NodePointer> {
         let offset_key = self.file_offset + key as usize * 8;
         let pointer = u64::from_le_bytes(
-            self.memory.read()[offset_key..offset_key + 8].try_into().expect("Not enough bytes to build file pointer."),
+            self.memory[offset_key..offset_key + 8].try_into().expect("Not enough bytes to build file pointer."),
         );
 
         if pointer != 0 {
@@ -311,11 +297,11 @@ impl<'a> IndexNode<'a> {
         }
     }
 
-    fn set_pointer(&self, key: u8, address: NodePointer) {
+    fn set_pointer(&mut self, key: u8, address: NodePointer) {
         let offset_key = self.file_offset + key as usize * 8;
         // The bitwise or is so that even a pointer of zero is always non-zero.
         let address = address.0 | 0x8000_0000_0000_0000;
-        self.memory.write()[offset_key..offset_key + 8].clone_from_slice(&address.to_le_bytes());
+        self.memory[offset_key..offset_key + 8].clone_from_slice(&address.to_le_bytes());
     }
 }
 
@@ -328,7 +314,7 @@ mod test_fileformate {
 
     #[test]
     fn insert_single_chunk_new_file() {
-        let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
+        let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
         index
             .get_chunk(0, 0, 0, |_chunk| {
                 // Do stuff with the chunk.
@@ -342,7 +328,7 @@ mod test_fileformate {
 
     #[test]
     fn iterate_chunks_new_file() {
-        let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
+        let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
         index.get_chunks_in_range((-50, -50, -50), (50, 50, 50), |_chunk| Ok(())).unwrap();
     }
 

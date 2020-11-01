@@ -5,14 +5,14 @@ use tempfile::tempfile;
 fn iterate_fresh_file(c: &mut Criterion) {
     c.bench_function("iterate_fresh_file", |b| {
         b.iter(|| {
-            let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
+            let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
             index.get_chunks_in_range((-50, -50, -50), (50, 50, 50), |_chunk| Ok(())).unwrap();
         })
     });
 }
 
 fn iterate_pregen_file(c: &mut Criterion) {
-    let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
+    let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
     index.get_chunks_in_range((-50, -50, -50), (50, 50, 50), |_chunk| Ok(())).unwrap();
 
     let profiler = pprof::ProfilerGuard::new(100).unwrap();
@@ -30,7 +30,7 @@ fn iterate_pregen_file(c: &mut Criterion) {
 }
 
 fn single_chunk_fresh_file(c: &mut Criterion) {
-    let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
+    let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
 
     c.bench_function("single_chunk_fresh_file", |b| {
         b.iter(|| {
