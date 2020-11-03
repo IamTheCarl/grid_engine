@@ -1,4 +1,3 @@
-
 # The Vision for Grid Locked
 There's now a small following for this project on Discord, and they want to know what my goals for this project are; So I'm doing my best to document those here. I'll try to portray my goals without going too deep into the technical details or plan.
 
@@ -10,15 +9,15 @@ Grid Locked hopes to tell a story as well, in a way consistent with player-drive
 
 ## The Community
 
-Community is first and foremost in the design of this game. I want fan works. I want a ton of them. As a result, character design needs to be appealing and fun to draw. Characters also need to be decent bases for fan fiction (I really hope I don't regret that.) A community of such fan works will need positive reinforcements, avoiding rude or negative interations but giving valuable critique and having fun, which means moderation on some level.
+Community is first and foremost in the design of this game. I want fan works. I want a ton of them. As a result, character design needs to be appealing and fun to draw. Characters also need to be decent bases for fan fiction (I really hope I don't regret that.) A community of such fan works will need positive reinforcements, avoiding rude or negative interactions but giving valuable critique and having fun, which means moderation on some level.
 
 Although Grid Locked is meant to be a very technical game, it will need to have some aspects of it that can be enjoyed by non-technical people. Combat and exploration will hopefully fill in for this.
 
 ## Modding
 
-Grid Locked will be moddable, and suited for a large modding community. The modding API is focused on speed and consistency, as we don't want mods that are slow or crash often, and that may lead to some complication in usage.
+Grid Locked will be moddable, and suited for a large modding community. The modding API is focused on speed and consistency, as we don't want mods that are slow or crash often, and that may lead to some complexity in usage.
 
-## Multi Player
+## Multiplayer
 
 I would like for this game to be able to support a massive multiplayer base, enabling up to 50 players on an ordinary server at once. That's no easy feat. A player's role on the server will depend mostly on what they equip. While you can make yourself a generic "jack of all trades", you'd be wise to instead fill a role for your friends, while they fill in other roles. For example, even though anyone can heal, if you give up your weapon to carry better medical equipment, you can be an amazing healer.
 
@@ -28,25 +27,15 @@ No crafting grids are planned. They play poorly with mods and it's just too icon
 
 ## Research and Development
 
-I don't want the game to completely hold your hand the whole time. I think it's fun to have to experiment and discover. To unlock tech you must do research and development, which should help you to learn the base technologies that higher technologies depend on. You'll have to complete some challenges in some cases. In others, taking pictures of machines and products of your factories will count toward your research. You can also gain a lot of research by exploring ruins, but that's completely optional.
+I don't want the game to completely hold your hand the whole time. It's fun to have to experiment and discover. To unlock tech you must do research and development, which should help you to learn the base technologies that higher technologies depend on. You'll have to complete some challenges in some cases. In others, taking pictures of machines and products of your factories will count toward your research. You can also gain a lot of research by exploring ruins, but that's completely optional.
 
-(Joel Note 1: I believe we should have materials have consistent properties to allow for real layering and understanding to emerge as with real science. We should have a game loop of roughly:
-
-Observation: My toaster doesn’t work. ( I'm dying often )
-Question: Is something wrong with my electrical outlet? ( How can I improve against these challenges? )
-Hypothesis: If something is wrong with the outlet, my coffeemaker also won’t work when plugged into it. ( 
-Experiment: I plug my coffeemaker into the outlet.
-Result: My coffeemaker works!
-Conclusion: My electrical outlet works, but my toaster still won’t toast my bread.
-Refine the hypothesis: My toaster is broken.
-(End Edit Proccess Day 1)
 ## Economy
 
-There is a plan for an in-game economy. No I will not charge real money for the in-game money. What do you think this is? A pay to play? In-game  money can be used as a way to obtain tech you have not yet unlocked, or to traid with other players. Server admins can also use it to make up for balance issues in resource generation.
+There is a plan for an in-game economy. No I will not charge real money for the in-game money. What do you think this is? A pay to play? In-game  money can be used as a way to obtain tech you have not yet unlocked, or to trade with other players. Server admins can also use it to make up for balance issues in resource generation.
 
-## Bioms
+## Biomes
 
-In comparison to Minecraft, I want bioms to be massive. The reason for this is to help motivate the player to build logistics and transport systems, such as trains.
+In comparison to Minecraft, I want biomes to be massive. The reason for this is to help motivate the player to build logistics and transport systems, such as trains.
 
 ## Death
 
@@ -58,11 +47,11 @@ Fully mobile vehicles made of blocks are a big goal of this project. They will r
 
 ## Combat
 
-Combat will vary by biome, as the biom determines what kind of enemies will span. Enemies generally do not respawn, but rather reproduce. Because of this, if you clean out a mine, it will likely stay clean. But if you leave a survivor, he will reproduce and that mine will eventually be infested once more. This means you don't need to worry so much about filling your own base with lights, but more about just keeping it clean and them out.
+Combat will vary by biome, as the biome determines what kind of enemies will spawn. Enemies generally do not respawn, but rather reproduce. Because of this, if you clean out a mine, it will likely stay clean. But if you leave a few survivors, they will reproduce and that mine will eventually be infested once more. This means you don't need to worry so much about filling your own base with lights, but more about just keeping it clean and monsters out.
 
 Because enemies generally don't spawn at random, occasional assault teams will be spawned to harass your base, just to give you a reason to keep your defenses up.
 
-The combat style of the game will vary from biome to biome. While some will give you a more Quake like experience, franticly fighting off hordes, others will spawn few enemies that are very tanky. If you know where you're going, you'll know to arm yourself for the enemies you're going to find there. This game rewards you well for forethought.
+The combat style of the game will vary from biome to biome. While some will give you a more Quake like experience, frantically fighting off hordes, others will spawn few enemies that are very tanky. If you know where you're going, you'll know to arm yourself for the enemies you're going to find there. This game rewards you well for forethought.
 
 ## Ruins
 
