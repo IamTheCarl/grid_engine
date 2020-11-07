@@ -3,7 +3,6 @@
 
 //! Mechanisms and components revolving around what the player sees as a world.
 
-use antidote::{Mutex, RwLock};
 use anyhow::{anyhow, Context, Result};
 use std::convert::TryInto;
 use std::fs::File;
@@ -21,19 +20,40 @@ create_file_pointer_type!(NodePointer);
 create_file_pointer_type!(ChunkKey);
 create_file_pointer_type!(ChunkPointer);
 
-pub struct Chunk<'a> {
-    memory: &'a mapr::MmapMut,
+/// The raw data for a chunk's terrain.
+pub struct TerrainChunkData {
+    storage: [u16; 16 * 16 * 16],
     address: usize,
     x: i16,
     y: i16,
     z: i16,
 }
 
-impl<'a> Chunk<'a> {
-    fn load(memory: &'a mapr::MmapMut, x: i16, y: i16, z: i16, address: ChunkPointer) -> Result<Chunk> {
+impl<'a> TerrainChunkData {
+    fn create(x: i16, y: i16, z: i16, address: ChunkPointer) -> Result<TerrainChunkData> {
         // Get the true address.
         let address = address.0 << 4;
-        Ok(Chunk { memory, address: address as usize, x, y, z })
+        Ok(TerrainChunkData { storage: [0; 16 * 16 * 16], address: address as usize, x, y, z })
+    }
+
+    /// Gets the index of this chunk.
+    pub fn get_index(&self) -> (i16, i16, i16) {
+        (self.x, self.y, self.z)
+    }
+
+    /// Gets the address that this chunk is located at in the chunk file.
+    pub fn get_address_in_file(&self) -> usize {
+        self.address
+    }
+
+    /// Provides the block data for this chunk.
+    pub fn get_data(&self) -> &[u16] {
+        &self.storage
+    }
+
+    /// Provides the block data for this chunk.
+    pub fn get_data_mut(&mut self) -> &mut [u16] {
+        &mut self.storage
     }
 }
 
@@ -80,37 +100,69 @@ impl TerrainDiskStorage {
         Ok(index)
     }
 
-    /// Gets chunks within a range. It is an O(n) operation, but it should be a little faster than just calling
-    /// the get_chunk function repeatedly. Note that for both the high and low range, this is inclusive.
-    pub fn get_chunks_in_range<F: Fn(&Chunk) -> Result<()>>(
-        &mut self, low: (i16, i16, i16), high: (i16, i16, i16), function: F,
-    ) -> Result<()> {
-        // Low must be low, and high must be high.
-        debug_assert!(low.0 <= high.0);
-        debug_assert!(low.1 <= high.1);
-        debug_assert!(low.2 <= high.2);
+    /// Will get a single chunk's data at the specified chunk coordinates. Search time is O(1).
+    /// If the chunk does not exist in the file, None will be returned.
+    pub fn get_chunk(&self, x: i16, y: i16, z: i16) -> Result<Option<TerrainChunkData>> {
+        let key = Self::create_chunk_key(x, y, z);
+        let chunk_address = self.get_chunk_address(key).context("Error while indexing chunk.")?;
 
-        // TODO we're just dumbly iterating by x-y-z. We should see if we can do some hashmappy cleverness to cut some steps on each iteration.
-        for y in low.1..=high.1 {
-            for x in low.0..=high.0 {
-                for z in low.2..=high.2 {
-                    self.get_chunk(x, y, z, |chunk| function(chunk))?;
+        if let Some(chunk_address) = chunk_address {
+            let mut chunk = TerrainChunkData::create(x, y, z, chunk_address).context("Error while loading chunk.")?;
+
+            self.load_chunk(&mut chunk, chunk_address)?;
+
+            Ok(Some(chunk))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Will get a single chunk's data at the specified chunk coordinates. Search time is O(1).
+    /// If the chunk does not exist in the file, it will be created. It also returns a boolean
+    /// with it that is set to true if the chunk was just created.
+    pub fn get_or_create_chunk(&mut self, x: i16, y: i16, z: i16) -> Result<(bool, TerrainChunkData)> {
+        let key = Self::create_chunk_key(x, y, z);
+        let (created, chunk_address) = self.get_or_create_chunk_address(key).context("Error while indexing chunk.")?;
+
+        let mut chunk = TerrainChunkData::create(x, y, z, chunk_address).context("Error while loading chunk.")?;
+        self.load_chunk(&mut chunk, chunk_address)?; // TODO that's a pointless operation. we should have this generate instead.
+
+        Ok((created, chunk))
+    }
+
+    fn load_chunk(&self, chunk: &mut TerrainChunkData, chunk_address: ChunkPointer) -> Result<()> {
+        // Load the data into it.
+        let target = chunk.get_data_mut();
+        let source = &self.chunk_memory[chunk_address.0 as usize..chunk_address.0 as usize + CHUNK_LENGTH as usize];
+
+        // To do this efficiently, we have to do some odd iterating.
+        let mut target_iterator = target.iter_mut();
+        let mut source_iterator = source.iter();
+
+        loop {
+            let first = source_iterator.next();
+            let second = source_iterator.next();
+            let target = target_iterator.next();
+
+            if let Some(first) = first {
+                if let Some(second) = second {
+                    if let Some(target) = target {
+                        *target = u16::from_le_bytes([*first, *second]);
+                        continue;
+                    }
                 }
+            }
+
+            // We only get here if one of the above if statements are false.
+            // If they are all false, then that means we've successfully finished loading the chunk.
+            if first.is_none() && second.is_none() && target.is_none() {
+                break;
+            } else {
+                return Err(anyhow!("Unexpected end of chunk data in file."));
             }
         }
 
         Ok(())
-    }
-
-    /// Will get a single chunk at the specified chunk coordinates. Search time is O(1).
-    /// If the chunk does not exist, it will be created and then returned. It will not be populated with
-    /// content.
-    pub fn get_chunk<R, F: FnOnce(&Chunk) -> Result<R>>(&mut self, x: i16, y: i16, z: i16, function: F) -> Result<R> {
-        let key = Self::create_chunk_key(x, y, z);
-        let chunk_address = self.get_chunk_address(key).context("Error while indexing chunk.")?;
-        let chunk = Chunk::load(&self.chunk_memory, x, y, z, chunk_address).context("Error while loading chunk.")?;
-
-        function(&chunk)
     }
 
     /// Will flush all terrain index data to the hard drive.
@@ -137,10 +189,78 @@ impl TerrainDiskStorage {
         Ok(length)
     }
 
-    fn get_chunk_address(&mut self, key: ChunkKey) -> Result<ChunkPointer> {
+    /// Save the bytes of a chunk to a file.
+    pub fn save_chunk(&mut self, chunk: &TerrainChunkData) -> Result<()> {
+        let chunk_address = chunk.get_address_in_file();
+
+        let source = chunk.get_data();
+        let target = &mut self.chunk_memory[chunk_address..chunk_address + CHUNK_LENGTH as usize];
+
+        let mut target_iterator = target.iter_mut();
+        for block in source {
+            let first = target_iterator.next();
+            let second = target_iterator.next();
+            if let Some(first) = first {
+                if let Some(second) = second {
+                    let bytes = block.to_le_bytes();
+                    *first = bytes[0];
+                    *second = bytes[1];
+                    continue;
+                }
+            }
+
+            // If we get here, it means we ran out of space to store it.
+            return Err(anyhow!("Chunk data is somehow longer than the storage space provided."));
+        }
+
+        Ok(())
+    }
+
+    /// Returns the address of a chunk. If the chunk does not exist in the index, none will be returned.
+    fn get_chunk_address(&self, key: ChunkKey) -> Result<Option<ChunkPointer>> {
         let key_bytes = key.to_le_bytes();
         let keys = &key_bytes[3..7];
         let chunk_key = key_bytes[7];
+
+        // We start with the root node.
+        let mut node_address = NodePointer(0);
+
+        for key in keys {
+            // Try to get the node address.
+            let next_node_address = self.get_node(node_address, |root| Ok(root.get_pointer(*key)))?;
+
+            let next_node_address = if let Some(address) = next_node_address {
+                // The node already exists! We'll just use this address then.
+                address
+            } else {
+                return Ok(None);
+            };
+
+            // Step to the next node.
+            node_address = next_node_address;
+        }
+
+        let chunk_address = self.get_node(node_address, |node| {
+            // We start with the root and look for our first layer node.
+            Ok(node.get_pointer(chunk_key))
+        })?;
+
+        if let Some(address) = chunk_address {
+            // The chunk already exists! We'll just use this address then.
+            Ok(Some(ChunkPointer(address.0)))
+        } else {
+            // The chunk does not exist.
+            Ok(None)
+        }
+    }
+
+    /// Returns the address of a chunk. If the chunk does not exist in the index, a chunk will be created and returned.
+    /// With that chunk is returned a boolean. That boolean is true if the address was just created.
+    fn get_or_create_chunk_address(&mut self, key: ChunkKey) -> Result<(bool, ChunkPointer)> {
+        let key_bytes = key.to_le_bytes();
+        let keys = &key_bytes[3..7];
+        let chunk_key = key_bytes[7];
+        let mut created = false;
 
         // We start with the root node.
         let mut node_address = NodePointer(0);
@@ -157,7 +277,7 @@ impl TerrainDiskStorage {
                 let address = self.new_node()?;
 
                 // Make sure to add that to the root node;
-                self.get_node(node_address, |root| {
+                self.get_node_mut(node_address, |root| {
                     root.set_pointer(*key, address);
                     Ok(())
                 })?;
@@ -181,7 +301,9 @@ impl TerrainDiskStorage {
             // The chunk does not exist. We must create it.
             let address = self.new_chunk()?;
 
-            self.get_node(node_address, |node| {
+            self.get_node_mut(node_address, |node| {
+                created = true;
+
                 // We start with the root and look for our first layer node.
                 Ok(node.set_pointer(chunk_key, NodePointer(address.0)))
             })?;
@@ -189,7 +311,7 @@ impl TerrainDiskStorage {
             address
         };
 
-        Ok(chunk_address)
+        Ok((created, chunk_address))
     }
 
     fn new_chunk(&mut self) -> Result<ChunkPointer> {
@@ -229,13 +351,23 @@ impl TerrainDiskStorage {
         Ok(pointer)
     }
 
-    fn get_node<F: FnOnce(&mut IndexNode) -> Result<R>, R>(&mut self, pointer: NodePointer, function: F) -> Result<R> {
-        let mut node = IndexNode::load(&mut self.index_memory, *pointer).context("Error while fetching node.")?;
+    fn get_node_mut<F: FnOnce(&mut IndexNode) -> Result<R>, R>(&mut self, pointer: NodePointer, function: F) -> Result<R> {
+        let mut node = IndexNode::load(NodeMemoryReference::Mutable(&mut self.index_memory), *pointer)
+            .context("Error while fetching node.")?;
 
         // We can't safely return the node reference, so instead we call a provided function that will safely limit the lifetime of this reference.
         function(&mut node)
     }
 
+    fn get_node<F: FnOnce(&IndexNode) -> Result<R>, R>(&self, pointer: NodePointer, function: F) -> Result<R> {
+        let node = IndexNode::load(NodeMemoryReference::Immutable(&self.index_memory), *pointer)
+            .context("Error while fetching node.")?;
+
+        // We can't safely return the node reference, so instead we call a provided function that will safely limit the lifetime of this reference.
+        function(&node)
+    }
+
+    /// If you want to be able to fetch a chunk from the index, you first need a chunk key. This will generate it from a chunk index.
     fn create_chunk_key(x: i16, y: i16, z: i16) -> ChunkKey {
         // We group bits of the three axis together so that the more significant bits are on the left and the less significant are on the
         // right. This improves our chances of physically close chunks are close in the binary tree, improving our iteration speed when
@@ -267,13 +399,18 @@ impl TerrainDiskStorage {
     }
 }
 
+enum NodeMemoryReference<'a> {
+    Mutable(&'a mut mapr::MmapMut),
+    Immutable(&'a mapr::MmapMut),
+}
+
 struct IndexNode<'a> {
-    memory: &'a mut mapr::MmapMut,
+    memory: NodeMemoryReference<'a>,
     file_offset: usize,
 }
 
 impl<'a> IndexNode<'a> {
-    fn load(memory: &'a mut mapr::MmapMut, offset: u64) -> Result<IndexNode> {
+    fn load(memory: NodeMemoryReference, offset: u64) -> Result<IndexNode> {
         // Enforce that nodes are memory alined.
         if offset & 0xFF == 0 {
             Ok(IndexNode { memory, file_offset: offset as usize })
@@ -283,10 +420,17 @@ impl<'a> IndexNode<'a> {
     }
 
     fn get_pointer(&self, key: u8) -> Option<NodePointer> {
+        match &self.memory {
+            NodeMemoryReference::Mutable(memory) => self.get_pointer_internal(key, memory),
+            NodeMemoryReference::Immutable(memory) => self.get_pointer_internal(key, memory),
+        }
+    }
+
+    fn get_pointer_internal(&self, key: u8, memory: &mapr::MmapMut) -> Option<NodePointer> {
         let offset_key = self.file_offset + key as usize * 8;
-        let pointer = u64::from_le_bytes(
-            self.memory[offset_key..offset_key + 8].try_into().expect("Not enough bytes to build file pointer."),
-        );
+
+        let pointer =
+            u64::from_le_bytes(memory[offset_key..offset_key + 8].try_into().expect("Not enough bytes to build file pointer."));
 
         if pointer != 0 {
             // When storing this, we set the most significant bit to 1 so that even a pointer of zero appears as being set.
@@ -301,7 +445,11 @@ impl<'a> IndexNode<'a> {
         let offset_key = self.file_offset + key as usize * 8;
         // The bitwise or is so that even a pointer of zero is always non-zero.
         let address = address.0 | 0x8000_0000_0000_0000;
-        self.memory[offset_key..offset_key + 8].clone_from_slice(&address.to_le_bytes());
+
+        match &mut self.memory {
+            NodeMemoryReference::Mutable(memory) => memory[offset_key..offset_key + 8].clone_from_slice(&address.to_le_bytes()),
+            NodeMemoryReference::Immutable(_memory) => panic!("Attempt to set pointer in an immutable node."),
+        }
     }
 }
 
@@ -315,21 +463,26 @@ mod test_fileformate {
     #[test]
     fn insert_single_chunk_new_file() {
         let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
-        index
-            .get_chunk(0, 0, 0, |_chunk| {
-                // Do stuff with the chunk.
-                Ok(())
-            })
-            .unwrap();
+        index.get_or_create_chunk(0, 0, 0).unwrap();
+        index.get_chunk(0, 0, 0).unwrap().unwrap();
 
         // Should be 5 nodes.
         assert_eq!(index.get_index_file_length().unwrap(), 10240);
     }
 
     #[test]
-    fn iterate_chunks_new_file() {
+    fn get_chunk_that_does_not_exist() {
+        let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
+        let chunk = index.get_chunk(0, 0, 0).unwrap();
+
+        assert!(chunk.is_none());
+    }
+
+    #[test]
+    fn save_chunk() {
         let mut index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
-        index.get_chunks_in_range((-50, -50, -50), (50, 50, 50), |_chunk| Ok(())).unwrap();
+        let (_created, chunk) = index.get_or_create_chunk(0, 0, 0).unwrap();
+        index.save_chunk(&chunk).unwrap();
     }
 
     #[test]
@@ -403,22 +556,4 @@ mod test_fileformate {
         assert_eq!(TerrainDiskStorage::create_chunk_key(0x0000, 0x0001, 0x0000), ChunkKey(0x0000000000000002));
         assert_eq!(TerrainDiskStorage::create_chunk_key(0x0000, 0x0000, 0x0001), ChunkKey(0x0000000000000001));
     }
-}
-
-#[cfg(benchmark)]
-mod benchmark {
-    use super::*;
-
-    use criterion::{criterion_group, criterion_main, Criterion};
-
-    pub fn chunk_iterate_fresh_file(c: &mut Criterion) {
-        c.bench_function("chunk iterate fresh file", |b| {
-            b.iter(|| {
-                let index = TerrainDiskStorage::initialize(tempfile().unwrap(), tempfile().unwrap()).unwrap();
-                index.get_chunks_in_range((-50, -50, -50), (50, 50, 50), |_chunk| Ok(())).unwrap();
-            })
-        });
-    }
-    criterion_group!(benches, chunk_iterate);
-    criterion_main!(benches);
 }
