@@ -3,9 +3,11 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use tempfile::tempdir;
 
+const COMPRESSION_LEVEL: u8 = 6;
+
 fn save_single_chunk(c: &mut Criterion) {
     let dir = tempdir().unwrap();
-    let storage = ChunkDiskStorage::initialize(dir.path());
+    let storage = ChunkDiskStorage::initialize(dir.path(), COMPRESSION_LEVEL);
 
     let chunk = ChunkData::create(0, 0, 0);
 
@@ -25,7 +27,7 @@ fn save_single_chunk(c: &mut Criterion) {
 
 fn load_single_chunk(c: &mut Criterion) {
     let dir = tempdir().unwrap();
-    let storage = ChunkDiskStorage::initialize(dir.path());
+    let storage = ChunkDiskStorage::initialize(dir.path(), COMPRESSION_LEVEL);
 
     let chunk = ChunkData::create(0, 0, 0);
     storage.save_chunk(&chunk).unwrap();
@@ -46,7 +48,7 @@ fn load_single_chunk(c: &mut Criterion) {
 
 fn bulk_load(c: &mut Criterion) {
     let dir = tempdir().unwrap();
-    let storage = ChunkDiskStorage::initialize(dir.path());
+    let storage = ChunkDiskStorage::initialize(dir.path(), COMPRESSION_LEVEL);
 
     let radius = 4;
 
@@ -71,30 +73,51 @@ fn bulk_load(c: &mut Criterion) {
 
     let thread_pool = ThreadPoolBuilder::new().num_threads(0).build().unwrap();
 
-    let profiler = pprof::ProfilerGuard::new(100).unwrap();
+    {
+        let profiler = pprof::ProfilerGuard::new(100).unwrap();
 
-    c.bench_function("bulk_load", |b| {
-        b.iter(|| {
-            thread_pool.scope(|scope| {
+        c.bench_function("bulk_load_multi_thread", |b| {
+            b.iter(|| {
+                thread_pool.scope(|scope| {
+                    for y in -radius..=radius {
+                        for x in -radius..=radius {
+                            for z in -radius..=radius {
+                                // Only hand a reference to the thread.
+                                let storage = &storage;
+                                scope.spawn(move |_| {
+                                    assert!(storage.get_chunk(x, y, z).unwrap().is_some());
+                                })
+                            }
+                        }
+                    }
+                });
+            })
+        });
+        if let Ok(report) = profiler.report().build() {
+            let file = std::fs::File::create("flamegraphs/bulk_load_multi_thread.svg").unwrap();
+            report.flamegraph(file).unwrap();
+        };
+    }
+
+    {
+        let profiler = pprof::ProfilerGuard::new(100).unwrap();
+
+        c.bench_function("bulk_load_single_thread", |b| {
+            b.iter(|| {
                 for y in -radius..=radius {
                     for x in -radius..=radius {
                         for z in -radius..=radius {
-                            // Only hand a reference to the thread.
-                            let storage = &storage;
-                            scope.spawn(move |_| {
-                                assert!(storage.get_chunk(x, y, z).unwrap().is_some());
-                            })
+                            assert!(storage.get_chunk(x, y, z).unwrap().is_some());
                         }
                     }
                 }
-            });
-        })
-    });
-
-    if let Ok(report) = profiler.report().build() {
-        let file = std::fs::File::create("flamegraphs/bulk_load.svg").unwrap();
-        report.flamegraph(file).unwrap();
-    };
+            })
+        });
+        if let Ok(report) = profiler.report().build() {
+            let file = std::fs::File::create("flamegraphs/bulk_load_single_thread.svg").unwrap();
+            report.flamegraph(file).unwrap();
+        };
+    }
 }
 
 fn bulk_save(c: &mut Criterion) {
@@ -113,30 +136,50 @@ fn bulk_save(c: &mut Criterion) {
 
     let thread_pool = ThreadPoolBuilder::new().num_threads(0).build().unwrap();
 
-    let profiler = pprof::ProfilerGuard::new(100).unwrap();
+    {
+        let profiler = pprof::ProfilerGuard::new(100).unwrap();
 
-    c.bench_function("bulk_save", |b| {
-        // We have to start fresh each time.
-        let dir = tempdir().unwrap();
-        let storage = ChunkDiskStorage::initialize(dir.path());
+        c.bench_function("bulk_save_multi_thread", |b| {
+            // We have to start fresh each time.
+            let dir = tempdir().unwrap();
+            let storage = ChunkDiskStorage::initialize(dir.path(), COMPRESSION_LEVEL);
+            b.iter(|| {
+                thread_pool.scope(|scope| {
+                    for chunk in &chunks {
+                        // Only hand a reference to the thread.
+                        let storage = &storage;
+                        scope.spawn(move |_| {
+                            storage.save_chunk(chunk).unwrap();
+                        });
+                    }
+                });
+            })
+        });
+        if let Ok(report) = profiler.report().build() {
+            let file = std::fs::File::create("flamegraphs/bulk_save_multi_thread.svg").unwrap();
+            report.flamegraph(file).unwrap();
+        };
+    }
 
-        b.iter(|| {
-            thread_pool.scope(|scope| {
+    {
+        let profiler = pprof::ProfilerGuard::new(100).unwrap();
+
+        c.bench_function("bulk_save_single_thread", |b| {
+            // We have to start fresh each time.
+            let dir = tempdir().unwrap();
+            let storage = ChunkDiskStorage::initialize(dir.path(), COMPRESSION_LEVEL);
+            b.iter(|| {
                 for chunk in &chunks {
                     // Only hand a reference to the thread.
-                    let storage = &storage;
-                    scope.spawn(move |_| {
-                        storage.save_chunk(chunk).unwrap();
-                    });
+                    storage.save_chunk(chunk).unwrap();
                 }
-            });
-        })
-    });
-
-    if let Ok(report) = profiler.report().build() {
-        let file = std::fs::File::create("flamegraphs/bulk_save.svg").unwrap();
-        report.flamegraph(file).unwrap();
-    };
+            })
+        });
+        if let Ok(report) = profiler.report().build() {
+            let file = std::fs::File::create("flamegraphs/bulk_save_single_thread.svg").unwrap();
+            report.flamegraph(file).unwrap();
+        };
+    }
 }
 
 criterion_group!(terrain_io, load_single_chunk, save_single_chunk, bulk_load, bulk_save);

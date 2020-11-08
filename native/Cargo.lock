@@ -572,6 +572,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "criterion",
+ "flate2",
  "goods",
  "laminar",
  "lazy_static",

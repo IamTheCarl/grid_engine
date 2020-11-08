@@ -4,13 +4,17 @@
 //! Mechanisms and components revolving around what the player sees as a world.
 
 use anyhow::{anyhow, Context, Result};
+use flate2::read::DeflateDecoder;
+use flate2::write::DeflateEncoder;
+use flate2::Compression;
 use fs::File;
 use std::fs;
+use std::io::Cursor;
 use std::io::{BufReader, BufWriter};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-const BLOCK_ADDRESS_BITS: usize = 4;
+const BLOCK_ADDRESS_BITS: usize = 5;
 const CHUNK_DIAMETER: usize = 1 << BLOCK_ADDRESS_BITS;
 
 // A chunk is 16x16x16 blocks in size, and a block consists of two bytes.
@@ -69,6 +73,7 @@ impl ChunkData {
 /// but it will not fill the chunk with content.
 pub struct ChunkDiskStorage {
     root_folder: PathBuf,
+    compression_level: Compression,
 }
 
 // Want to keep this thread safe.
@@ -78,8 +83,11 @@ impl ChunkDiskStorage {
     /// Provide a file handles for both the index file and the chunk file and this will be able to load and store
     /// terrain chunk data in them. Note that if the index file is uninitialized, this will go through the process of
     /// initializing them.
-    pub fn initialize(root_folder: &Path) -> ChunkDiskStorage {
-        ChunkDiskStorage { root_folder: PathBuf::from(root_folder) }
+    pub fn initialize(root_folder: &Path, compression_level: u8) -> ChunkDiskStorage {
+        ChunkDiskStorage {
+            root_folder: PathBuf::from(root_folder),
+            compression_level: Compression::new(compression_level as u32),
+        }
     }
 
     /// Will get a single chunk's data at the specified chunk coordinates. Search time is filesystem dependent.
@@ -90,15 +98,19 @@ impl ChunkDiskStorage {
         if path.exists() {
             let file = File::open(path)?;
             let mut file = BufReader::new(file);
+            let mut data = Vec::new();
+            file.read_to_end(&mut data).context("Error while reading chunk file.")?;
+            let data = Cursor::new(data);
+            let mut zip = DeflateDecoder::new(data);
             let mut chunk = ChunkData::create(x, y, z);
 
             {
                 // We need to view this as bytes. Don't worry about the endian. We'll fix that in a moment.
                 let block_data = unsafe { std::mem::transmute::<&mut [u16], &mut [u8]>(chunk.get_data_mut()) };
-                file.read_exact(block_data)?;
+                zip.read_exact(block_data).context("Failed to read bytes into chunk.")?;
             }
 
-            // We have to flip all those bytes to our big endian format.
+            // If we are a big endian machine, we have to flip all those bytes to our big endian format.
             #[cfg(target_endian = "big")]
             {
                 for block in chunk.get_data_mut() {
@@ -132,10 +144,16 @@ impl ChunkDiskStorage {
 
         let file = File::create(path)?;
         let mut file = BufWriter::new(file); // Makes writing small bits of data a little more efficient.
+        let mut storage = Vec::new();
+        storage.reserve(CHUNK_LENGTH);
+        let mut compressor = DeflateEncoder::new(storage, self.compression_level);
 
         for block in chunk.get_data() {
-            file.write(&block.to_le_bytes())?;
+            compressor.write(&block.to_le_bytes()).context("Error writing to compression buffer.")?;
         }
+
+        let to_write = compressor.finish().context("Error compressing chunk")?;
+        file.write_all(&to_write).context("Error writing chunk data to file.")?;
 
         Ok(())
     }
@@ -190,14 +208,14 @@ mod test_fileformate {
     #[test]
     fn read_chunk_doesnt_exist() {
         let dir = tempfile::tempdir().unwrap();
-        let storage = ChunkDiskStorage::initialize(dir.path());
+        let storage = ChunkDiskStorage::initialize(dir.path(), 9);
         assert!(storage.get_chunk(0, 0, 0).unwrap().is_none());
     }
 
     #[test]
     fn create_chunk() {
         let dir = tempfile::tempdir().unwrap();
-        let storage = ChunkDiskStorage::initialize(dir.path());
+        let storage = ChunkDiskStorage::initialize(dir.path(), 9);
         let chunk = ChunkData::create(0, 0, 0);
         storage.save_chunk(&chunk).unwrap();
 
