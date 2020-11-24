@@ -2,12 +2,12 @@
 // AGPL-3.0-or-later
 
 use futures::executor::block_on;
-use wgpu::util::DeviceExt;
-use wgpu::*;
+use wgpu::{util::DeviceExt, *};
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
 use chrono::Timelike;
+use egui::app::App;
 use egui::paint::FontDefinitions;
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit_platform::{Platform, PlatformDescriptor};
@@ -58,7 +58,8 @@ const VERTICES: &[Vertex] = &[
 /// Grid Locked, the Game, finally becoming a reality this time I swear.
 struct Arguments {
     /// the number of processing threads used to drive the engine.
-    /// When unspecified or set to 0, will automatically determine the ideal number of threads to use on your system.
+    /// When unspecified or set to 0, will automatically determine the ideal
+    /// number of threads to use on your system.
     #[argh(option, default = "0")]
     num_threads: usize,
 }
@@ -184,16 +185,7 @@ impl Client {
         let arguments: Arguments = argh::from_env();
         let thread_pool = ThreadPoolBuilder::new().num_threads(arguments.num_threads).build()?;
 
-        // TODO dynamically load this world in via UI.
-        let mut world = World::default();
-        let command_buffer = legion::systems::CommandBuffer::new(&world);
-        let resources = Resources::default();
-        let mut schedule_builder = Schedule::builder();
-        let schedule = schedule_builder.build();
-
-        // world.push((GUIComponent::new(gui::HelloWorld), ()));
-        let mut worlds = Vec::new();
-        worlds.push((world, schedule, resources, command_buffer));
+        let worlds = Vec::new();
 
         // We use the egui_winit_platform crate as the platform.
         let platform = Platform::new(PlatformDescriptor {
@@ -292,9 +284,20 @@ impl Client {
                 // TODO most of this could be done in another thread, or in parallel.
                 let mut ui = self.platform.begin_frame();
 
-                self.demo_app.ui(&mut ui, &self.demo_env);
+                let mut integration_context = egui::app::IntegrationContext {
+                    info: egui::app::IntegrationInfo {
+                        web_info: None,
+                        cpu_usage: None,
+                        seconds_since_midnight: None,
+                        native_pixels_per_point: None,
+                    },
+                    tex_allocator: Some(&mut self.egui_rpass),
+                    output: Default::default(),
+                };
+                self.demo_app.ui(&self.platform.context(), &mut integration_context);
 
-                let (_output, paint_jobs) = self.platform.end_frame();
+                let (_output, paint_commands) = self.platform.end_frame();
+                let paint_jobs = self.platform.context().tesselate(paint_commands);
 
                 let screen_descriptor = ScreenDescriptor {
                     physical_width: self.sc_desc.width,

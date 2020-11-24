@@ -2,7 +2,7 @@
 members = ["common", "client", "server", "cargo-grid"]
 
 [patch.crates-io]
-egui = { git = "https://github.com/emilk/egui" }
+egui = { version = "0.3", git = "https://github.com/emilk/egui" }
 
 # Release build uses every possible optimization.
 [profile.release]

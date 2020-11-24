@@ -42,8 +42,8 @@ fn main() {
     }
 }
 
-/// A function that generally catches errors from the client setup so that they can be properly handled
-/// and displayed to the user.
+/// A function that generally catches errors from the client setup so that they
+/// can be properly handled and displayed to the user.
 fn trampoline() -> Result<()> {
     env_logger::init();
 

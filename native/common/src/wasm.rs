@@ -64,8 +64,8 @@
 // }
 
 // impl LayoutFilter for WasmLayout {
-//     fn matches_layout(&self, components: &[ComponentTypeId]) -> FilterResult {
-//         // Check native type IDs
+//     fn matches_layout(&self, components: &[ComponentTypeId]) -> FilterResult
+// {         // Check native type IDs
 //         // Check wasm type IDs
 //         unimplemented!()
 //     }
@@ -90,9 +90,9 @@
 //         if let Some(components) = fetch.find::<WasmComponent>() {
 //             for component in components {
 //                 if component.type_id == self.type_id {
-//                     // TODO let a function internal to the WASM do this check against an actual Rust typeID.
-//                     return FilterResult::Match(true);
-//                 }
+//                     // TODO let a function internal to the WASM do this check
+// against an actual Rust typeID.                     return
+// FilterResult::Match(true);                 }
 //             }
 
 //             FilterResult::Match(false)
@@ -127,8 +127,8 @@
 //     }
 // }
 
-// // For now I'm using the server as my sort of "scratch space" because it's so simple to experiment in right now.
-// use common::modules::*;
+// // For now I'm using the server as my sort of "scratch space" because it's so
+// simple to experiment in right now. use common::modules::*;
 // use std::path::PathBuf;
 // use wasmtime::*;
 // use std::io::prelude::*;

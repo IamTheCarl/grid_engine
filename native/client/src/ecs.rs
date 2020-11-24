@@ -7,12 +7,12 @@
 
 // /// A trait for GUIs.
 // pub trait GUI: std::fmt::Debug + Sync + Send {
-//     /// Called every time the display is redrawn so that you can render the GUI to the display.
-//     fn on_frame(&mut self, ui: &imgui::Ui) -> Result<()>;
+//     /// Called every time the display is redrawn so that you can render the
+// GUI to the display.     fn on_frame(&mut self, ui: &imgui::Ui) -> Result<()>;
 // }
 
-// /// A component that can contain a GUI, which will be rendered to the display.
-// pub struct GUIComponent {
+// /// A component that can contain a GUI, which will be rendered to the
+// display. pub struct GUIComponent {
 //     gui: Box<dyn GUI>,
 // }
 

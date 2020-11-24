@@ -3,8 +3,8 @@
 
 //! Modules are how user made content are loaded into the engine.
 //!
-//! Modules are zip archives (typically compressed) containing web assembly code to add content to the game, along
-//! with additional assets they may depend on.
+//! Modules are zip archives (typically compressed) containing web assembly code
+//! to add content to the game, along with additional assets they may depend on.
 //!
 //! Currently they are only able to be manually imported.
 //! There is no automated download of modules.
@@ -13,9 +13,11 @@
 use anyhow::{anyhow, Result};
 use io::{Read, Seek};
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::HashMap;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::hash_map::HashMap,
+    io,
+    path::{Path, PathBuf},
+};
 use zip::read::{ZipArchive, ZipFile};
 
 #[derive(Serialize, Deserialize)]
@@ -28,8 +30,8 @@ pub struct PackageMetadata {
 }
 
 /// An index of a module package.
-/// Does not actually load the whole package into memory. It just loads an index and provides an
-/// easy interface to load the data from the package.
+/// Does not actually load the whole package into memory. It just loads an index
+/// and provides an easy interface to load the data from the package.
 pub struct PackageFile<R: Read + Seek> {
     archive: ZipArchive<R>,
     metadata: PackageMetadata,

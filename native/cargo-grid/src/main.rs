@@ -4,9 +4,11 @@
 use argh::FromArgs;
 use colored::*;
 use common::modules::PackageMetadata;
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use cargo_metadata::Message;
 use std::process::{Command, Output, Stdio};
@@ -14,7 +16,8 @@ use std::process::{Command, Output, Stdio};
 const META_HEADER_VERSION: u16 = 0;
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// This is a command line tool meant to assist in the creation of content for the Grid Engine.
+/// This is a command line tool meant to assist in the creation of content for
+/// the Grid Engine.
 struct Arguments {
     #[argh(subcommand)]
     command: SubCommands,
@@ -28,14 +31,17 @@ enum SubCommands {
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "pack")]
-/// Package your code and assets into a package that can be loaded by the grid engine.
+/// Package your code and assets into a package that can be loaded by the grid
+/// engine.
 struct Pack {
     #[argh(option)]
-    /// optionally specify the path of the cargo project you wish to pack. If not specified, assumes the current directory.
+    /// optionally specify the path of the cargo project you wish to pack. If
+    /// not specified, assumes the current directory.
     path: Option<PathBuf>,
 
     #[argh(option)]
-    /// optionally specify the path to drop the mod file into. If not specified, will default to the workspace's target directory.
+    /// optionally specify the path to drop the mod file into. If not specified,
+    /// will default to the workspace's target directory.
     target_dir: Option<PathBuf>,
 }
 
@@ -165,7 +171,8 @@ fn build_project(project_dir: &Path) -> Result<Vec<PathBuf>, String> {
 
     let output = get_output(project_dir)?;
 
-    // Okay, the build is done. Now we parse the output to figure out what the build artifacts are.
+    // Okay, the build is done. Now we parse the output to figure out what the build
+    // artifacts are.
     let messages = Message::parse_stream(&output.stdout[..]);
 
     let mut artifacts = Vec::new();

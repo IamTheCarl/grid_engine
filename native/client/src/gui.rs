@@ -18,8 +18,8 @@
 //             ui.text(im_str!("This...is...imgui-rs on WGPU!"));
 //             ui.separator();
 //             let mouse_pos = ui.io().mouse_pos;
-//             ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
-//         });
+//             ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos[0],
+// mouse_pos[1]));         });
 
 //         Ok(())
 //     }

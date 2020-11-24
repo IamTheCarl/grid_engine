@@ -6,31 +6,30 @@ edition = "2018"
 license = "AGPL"
 
 [dependencies]
-anyhow = "1.0.32" 
-bincode = "1.3.1" 
-laminar = "0.4.0" 
-lazy_static = "1.4.0" 
-legion = "0.3.1" 
-log = "0.4.11" 
-nalgebra = "0.22.0" 
-num-traits = "0.2.12" 
-os_info = "3.0.0" 
-rand = "0.7.3" 
-rsa = "0.3.0" 
-rstar = "0.8.2" 
-serde = "1.0.116" 
-simba = { version = "0.2.0", features = ["partial_fixed_point_support"] } 
-slotmap = "0.4.0" 
-sys-info = "0.7.0" 
-threadpool = "1.8.1" # TODO Remove that once you cleanup the scheduler.
-uuid = { version = "0.8.1", features = ["v1", "serde"] } 
-wasmtime = "0.20.0" 
-zip = { version = "0.5.8", features = ["bzip2"] } 
-goods = "0.5.3" 
-static_assertions = "1.1.0" 
-antidote = "1.0.0" 
-rayon = "1.4.1" 
-flate2 = "1.0.*" 
+anyhow = "1.0.32"
+bincode = "1.3.1"
+laminar = "0.4.0"
+lazy_static = "1.4.0"
+legion = "0.3.1"
+log = "0.4.11"
+nalgebra = "0.22.0"
+num-traits = "0.2.12"
+os_info = "3.0.0"
+rand = "0.7.3"
+rsa = "0.3.0"
+rstar = "0.8.2"
+serde = "1.0.116"
+simba = { version = "0.2.0", features = ["partial_fixed_point_support"] }
+sys-info = "0.7.0"
+uuid = { version = "0.8.1", features = ["v1", "serde"] }
+wasmtime = "0.20.0"
+zip = { version = "0.5.8", features = ["bzip2"] }
+goods = "0.5.3"
+static_assertions = "1.1.0"
+antidote = "1.0.0"
+rayon = "1.4.1"
+flate2 = "1.0.*"
+typetag = "0.1.6"
 
 [dev-dependencies]
 tempfile = "3.1.0"

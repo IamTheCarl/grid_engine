@@ -8,7 +8,8 @@ use std::{ops, time::Duration};
 /// Simulation time. Is tracked in milliseconds.
 /// Although you can operate on it using std::time::Duration, this struct only
 /// has precision in milliseconds. That means that if you set the microseconds
-/// or nanoseconds of the duration, they will be truncated from the final product.
+/// or nanoseconds of the duration, they will be truncated from the final
+/// product.
 #[derive(Copy, Clone, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Time {
     time_ms: u64,
