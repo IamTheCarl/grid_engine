@@ -3,8 +3,8 @@
 
 //! Miscellaneous functions that save a lot of time writing boiler plate.
 
-/// Creates a pointer to an address in a file that is type safe.
-macro_rules! create_file_pointer_type {
+/// Creates an extra type safe u64 integer.
+macro_rules! create_strong_type {
     ($name: ident) => {
         /// A type safe pointer to an object in a file.
         #[derive(Copy, Clone, Debug)]

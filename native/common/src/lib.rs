@@ -5,9 +5,6 @@
 
 #![warn(missing_docs)]
 
-mod time;
-pub use time::*;
-
 pub mod modules;
 // pub mod networking;
 #[macro_use]
