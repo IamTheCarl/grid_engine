@@ -8,6 +8,9 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 use anyhow::Result;
 
+use common::modules::PackageFile;
+use common::wasm::WasmFile;
+
 fn main() {
     let result = trampoline();
 
@@ -25,6 +28,10 @@ fn trampoline() -> Result<()> {
 
     log::info!("Welcome to Grid Engine!");
     common::log_basic_system_info()?;
+
+    let package = std::fs::File::open("../example_mod/target/example_mod.zip")?;
+    let mut package = PackageFile::load(std::io::BufReader::new(package))?;
+    let _wasm = WasmFile::load(&mut package, "entities")?;
 
     Ok(())
 }

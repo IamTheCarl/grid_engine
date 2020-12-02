@@ -1,9 +1,9 @@
 [workspace]
-members = ["test_ui"]
+members = ["test_ui", "entities"]
 
 # Release build uses every possible optimization.
 [profile.release]
 codegen-units = 1
 incremental = false
 lto = true
-opt-level=3
+opt-level = 3

@@ -3,7 +3,7 @@
 
 //! Long term storage of the world on the local disk.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
 use fs::File;
 use serde::{
@@ -17,7 +17,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// The number of bits in a block address that are specific to the block, and not part of the the chunk's address.
 pub const BLOCK_ADDRESS_BITS: usize = 5;
+
+/// The diameter of a chunk in blocks.
 pub const CHUNK_DIAMETER: usize = 1 << BLOCK_ADDRESS_BITS;
 
 // A chunk is 16x16x16 blocks in size, and a block consists of two bytes.

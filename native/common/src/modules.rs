@@ -105,7 +105,10 @@ impl<R: Read + Seek> PackageFile<R> {
 
     /// Get the ZipFile for a wasm binary file.
     pub fn get_wasm(&mut self, path: &Path) -> Option<ZipFile> {
-        let index = self.wasm.get(path);
+        let mut path = PathBuf::from(path);
+        path.set_extension("wasm");
+
+        let index = self.wasm.get(&path);
 
         if let Some(index) = index {
             let index = *index;
