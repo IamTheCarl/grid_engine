@@ -31,7 +31,10 @@ fn trampoline() -> Result<()> {
 
     let package = std::fs::File::open("../example_mod/target/example_mod.zip")?;
     let mut package = PackageFile::load(std::io::BufReader::new(package))?;
-    let _wasm = WasmFile::load(&mut package, "entities")?;
+    let wasm = WasmFile::load(&mut package, "entities")?;
+    let event_id = wasm.event_id("Event type name").unwrap();
+    let event = wasm.event(*event_id).unwrap();
+    println!("{}: {}", event, event_id);
 
     Ok(())
 }

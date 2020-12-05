@@ -15,7 +15,7 @@ extern "C" {
 
 #[no_mangle]
 extern "C" fn __entry_point() {
-    register_event_type(5, "Event type name");
+    register_event_type(0, "Event type name");
 }
 
 /// Register an event type that can be processed by an entity.
