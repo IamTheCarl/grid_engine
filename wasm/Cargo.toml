@@ -6,4 +6,4 @@ members = ["grid_engine_wasm_api"]
 codegen-units = 1
 incremental = false
 lto = true
-opt-level=3
+opt-level = 3

@@ -1,5 +1,5 @@
 [package]
-name = "grid_engine_wasm_api"
+name = "proc_macros"
 version = "0.0.0"
 authors = ["James Carl"]
 edition = "2018"
@@ -9,5 +9,9 @@ keywords = ["gamedev", "gridengine", "gridlocked", "modding", "mod"]
 repository = "https://github.com/IamTheCarl/grid_engine"
 readme = "README.md"
 
+[lib]
+proc-macro = true
+
 [dependencies]
-proc_macros = { path = "proc_macros", version = "0.0.0" }
+syn = { version = "1.0", features = ["full", "extra-traits"] }
+quote = "1.0"
