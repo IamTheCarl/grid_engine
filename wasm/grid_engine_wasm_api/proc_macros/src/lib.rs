@@ -36,7 +36,7 @@ pub fn entry_point(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 
     // Set the function name.
-    function.sig.ident = Ident::new("__entry_point", Span::call_site());
+    function.sig.ident = Ident::new("__user_entry_point", Span::call_site());
 
     // Set it to be an extern "C" function.
     function.sig.abi =

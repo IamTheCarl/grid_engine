@@ -68,6 +68,13 @@ impl WasmFile {
             Box::into_raw(Box::new(ModData { event_map: HashMap::new(), event_list: Vec::new() })) as *mut c_void;
         root_context.data = user_data;
 
+        let __spawn_dynamic_entity: Func<u32, u64> = wasm_file.root_instance.exports.get("__spawn_dynamic_entity")?;
+        let __drop_dynamic_entity: Func<u64, ()> = wasm_file.root_instance.exports.get("__drop_dynamic_entity")?;
+
+        let pointer = __spawn_dynamic_entity.call(0).unwrap();
+        println!("Entity memory address in WASM: {:x}", pointer);
+        __drop_dynamic_entity.call(pointer).unwrap();
+
         wasm_file.run_entry_point()?;
 
         Ok(wasm_file)
@@ -98,6 +105,10 @@ impl WasmFile {
         let mod_data = self.get_mod_data();
         mod_data.event_map.get(name)
     }
+
+    // pub fn spawn_dynamic_entity(&self, type_id: u32) {
+
+    // }
 }
 
 impl Drop for WasmFile {
@@ -106,4 +117,12 @@ impl Drop for WasmFile {
         let (_memory, user_data) = unsafe { self.root_instance.context_mut().memory_and_data_mut::<ModData>(0) };
         drop(user_data);
     }
+}
+
+pub struct WasmDynamicEntity {
+    instance: Instance,
+}
+
+impl WasmDynamicEntity {
+    fn create(instace: Instance) {}
 }
