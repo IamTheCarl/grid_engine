@@ -1,10 +1,17 @@
 // Copyright James Carl (C) 2020
 // AGPL-3.0-or-later
 
-use proc_macro::TokenStream;
-use quote::quote;
-use syn::{export::Span, parse_macro_input, Abi, Ident, ItemFn, LitStr, ReturnType, Token, Visibility};
+//! Procedural macros for generating code in the grid_engine_wasm_api crate.
 
+#![warn(missing_docs)]
+
+use proc_macro::TokenStream;
+use quote::{quote, ToTokens};
+use syn::{export::Span, parse_macro_input, Abi, ExprArray, Ident, ItemFn, LitStr, ReturnType, Token, Visibility};
+
+/// Tag the function you wish to be your entry point with this.
+/// It is expected to take no arguments, and return no arguments. Use this entry point function to
+/// load global assets and config.
 #[proc_macro_attribute]
 pub fn entry_point(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut function = parse_macro_input!(input as ItemFn);
@@ -45,5 +52,24 @@ pub fn entry_point(args: TokenStream, input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         #[no_mangle]
         #function
+    })
+}
+
+/// Create a list of dynamic entities provided by this mod.
+#[proc_macro]
+pub fn dynamic_entities(input: TokenStream) -> TokenStream {
+    let list = syn::parse::<ExprArray>(input).unwrap();
+
+    let length = list.elems.len();
+    let items = list.elems.to_token_stream();
+
+    TokenStream::from(quote! {
+        static __DYNAMIC_INITIALIZERS: [fn() -> Box<dyn DynamicEntity>; #length] = [#items];
+
+        #[no_mangle]
+        fn __get_initializer(type_id: u32) -> fn() -> Box<dyn DynamicEntity> {
+            assert!((type_id as usize) < __DYNAMIC_INITIALIZERS.len());
+            __DYNAMIC_INITIALIZERS[type_id as usize]
+        }
     })
 }

@@ -3,13 +3,7 @@
 
 use grid_engine_wasm_api::*;
 
-static __DYNAMIC_INITIALIZERS: [fn() -> Box<dyn DynamicEntity>; 1] = [TestDynamicEntity::initialize];
-
-#[no_mangle]
-fn __get_initializer(type_id: u32) -> fn() -> Box<dyn DynamicEntity> {
-    assert!((type_id as usize) < __DYNAMIC_INITIALIZERS.len());
-    __DYNAMIC_INITIALIZERS[type_id as usize]
-}
+dynamic_entities!([TestDynamicEntity1::initialize, TestDynamicEntity2::initialize]);
 
 #[entry_point]
 fn init() {
@@ -20,12 +14,22 @@ fn init() {
     register_event_type(4, "TestEvent4");
 }
 
-struct TestDynamicEntity;
+struct TestDynamicEntity1;
 
-impl TestDynamicEntity {
+impl TestDynamicEntity1 {
     fn initialize() -> Box<dyn DynamicEntity> {
-        Box::new(TestDynamicEntity)
+        Box::new(TestDynamicEntity1)
     }
 }
 
-impl DynamicEntity for TestDynamicEntity {}
+impl DynamicEntity for TestDynamicEntity1 {}
+
+struct TestDynamicEntity2;
+
+impl TestDynamicEntity2 {
+    fn initialize() -> Box<dyn DynamicEntity> {
+        Box::new(TestDynamicEntity2)
+    }
+}
+
+impl DynamicEntity for TestDynamicEntity2 {}
