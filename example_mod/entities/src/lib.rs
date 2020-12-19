@@ -6,16 +6,7 @@ use grid_engine_wasm_api::*;
 dynamic_entities!([TestDynamicEntity1::initialize, TestDynamicEntity2::initialize]);
 
 #[entry_point]
-fn init() {
-    log::info!("Started!");
-    register_event_type(0, "TestEvent0");
-    log::warn!("Working...");
-    register_event_type(1, "TestEvent1");
-    register_event_type(2, "TestEvent2");
-    register_event_type(3, "TestEvent3");
-    register_event_type(4, "TestEvent4");
-    log::error!("Finished.");
-}
+fn init() {}
 
 struct TestDynamicEntity1;
 

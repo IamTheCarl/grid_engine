@@ -17,16 +17,6 @@ lazy_static! {
     /// Functions that can be called by the root instance.
     static ref ROOT_INSTANCE_IMPORTS: ImportObject = imports! {
         "grid_api" => {
-            "__register_event_type" => func!(move |ctx: &mut Ctx, type_id: u32, name: WasmPtr<u8, Array>, name_len: u32| {
-                let (memory, mod_data) = unsafe { ctx.memory_and_data_mut::<ModData>(0) };
-                let name = name.get_utf8_string(memory, name_len).expect("Could not fetch memory.");
-                println!("Called: {}", name);
-
-                // FIXME we need a way to propagate a panic as a recoverable error.
-                assert_eq!(mod_data.event_list.len(), type_id as usize);
-                mod_data.event_map.insert(String::from(name), type_id);
-                mod_data.event_list.push(String::from(name));
-            }),
             "__log_message" => func!(move |ctx: &mut Ctx, level: u8, source: WasmPtr<u8, Array>, source_len: u32, message: WasmPtr<u8, Array>, message_len: u32| {
 
                 let (memory, mod_data) = unsafe { ctx.memory_and_data_mut::<ModData>(0) };
@@ -53,10 +43,7 @@ lazy_static! {
     };
 }
 
-struct ModData {
-    event_map: HashMap<String, u32>,
-    event_list: Vec<String>,
-}
+struct ModData {}
 
 /// Represents a web assembly file in a module.
 pub struct WasmFile {
@@ -87,8 +74,7 @@ impl WasmFile {
         let mut wasm_file = WasmFile { module, root_instance };
         let root_context = wasm_file.root_instance.context_mut();
 
-        let user_data: *mut c_void =
-            Box::into_raw(Box::new(ModData { event_map: HashMap::new(), event_list: Vec::new() })) as *mut c_void;
+        let user_data: *mut c_void = Box::into_raw(Box::new(ModData {})) as *mut c_void;
         root_context.data = user_data;
 
         let __spawn_dynamic_entity: Func<u32, u64> = wasm_file.root_instance.exports.get("__spawn_dynamic_entity")?;
@@ -116,19 +102,6 @@ impl WasmFile {
         let mod_data = unsafe { root_context.data.cast::<ModData>().as_ref() }.expect("Internal mod data was not initialized.");
         mod_data
     }
-
-    /// Get an event's name by its ID.
-    pub fn event(&self, type_id: u32) -> Option<&String> {
-        let mod_data = self.get_mod_data();
-        mod_data.event_list.get(type_id as usize)
-    }
-
-    /// Get an event's type ID from its name.
-    pub fn event_id(&self, name: &str) -> Option<&u32> {
-        let mod_data = self.get_mod_data();
-        mod_data.event_map.get(name)
-    }
-
     // pub fn spawn_dynamic_entity(&self, type_id: u32) {
 
     // }
@@ -142,10 +115,6 @@ impl Drop for WasmFile {
     }
 }
 
-pub struct WasmDynamicEntity {
-    instance: Instance,
-}
+pub struct WasmDynamicEntity {}
 
-impl WasmDynamicEntity {
-    fn create(instace: Instance) {}
-}
+impl WasmDynamicEntity {}

@@ -15,7 +15,6 @@ pub use proc_macros::*;
 // Functions provided by the host.
 #[link(wasm_import_module = "grid_api")]
 extern "C" {
-    fn __register_event_type(type_id: u32, name: *const u8, name_len: usize);
     fn __log_message(level: u8, source: *const u8, source_len: usize, message: *const u8, message_len: usize);
 }
 
@@ -23,13 +22,6 @@ extern "C" {
 extern "Rust" {
     fn __user_entry_point();
     fn __get_initializer(type_id: u32) -> fn() -> Box<dyn DynamicEntity>;
-}
-
-/// Register an event type that can be processed by an entity.
-pub fn register_event_type(type_id: u32, name: &str) {
-    unsafe {
-        __register_event_type(type_id, name.as_bytes().as_ptr(), name.len());
-    }
 }
 
 fn panic_handler(hook: &PanicInfo) {
