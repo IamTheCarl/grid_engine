@@ -6,6 +6,7 @@
 use crate::modules::PackageFile;
 use anyhow::{Context, Result};
 use lazy_static::lazy_static;
+use log::Level;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::io::{Read, Seek};
@@ -25,6 +26,28 @@ lazy_static! {
                 assert_eq!(mod_data.event_list.len(), type_id as usize);
                 mod_data.event_map.insert(String::from(name), type_id);
                 mod_data.event_list.push(String::from(name));
+            }),
+            "__log_message" => func!(move |ctx: &mut Ctx, level: u8, source: WasmPtr<u8, Array>, source_len: u32, message: WasmPtr<u8, Array>, message_len: u32| {
+
+                let (memory, mod_data) = unsafe { ctx.memory_and_data_mut::<ModData>(0) };
+
+                let level = match level {
+                    0 => Level::Error,
+                    1 => Level::Warn,
+                    2 => Level::Info,
+                    3 => Level::Debug,
+                    4 => Level::Trace,
+                    _ => {
+                        log::warn!("Log message received with invalid log level. Assuming warning for log level.");
+                        Level::Warn
+                    }
+                };
+
+                let source = source.get_utf8_string(memory, source_len).expect("Could not fetch memory.");
+                let message = message.get_utf8_string(memory, message_len).expect("Could not fetch memory.");
+
+                // TODO include the mod's name in this message.
+                log::log!(level, "{}: {}", source, message);
             })
         }
     };

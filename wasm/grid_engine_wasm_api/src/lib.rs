@@ -8,12 +8,15 @@
 #[cfg(not(target_arch = "wasm32"))]
 compile_error!("You are using the wrong compiler target. See the readme for details on how to fix that.");
 
+use core::panic::PanicInfo;
+use log::{Level, LevelFilter, Metadata, Record};
 pub use proc_macros::*;
 
 // Functions provided by the host.
 #[link(wasm_import_module = "grid_api")]
 extern "C" {
     fn __register_event_type(type_id: u32, name: *const u8, name_len: usize);
+    fn __log_message(level: u8, source: *const u8, source_len: usize, message: *const u8, message_len: usize);
 }
 
 // Functions provided by the user.
@@ -29,10 +32,30 @@ pub fn register_event_type(type_id: u32, name: &str) {
     }
 }
 
+fn panic_handler(hook: &PanicInfo) {
+    let source = format!("{}", "PANIC");
+    let message = format!("{}", hook);
+
+    unsafe {
+        __log_message(0, source.as_bytes().as_ptr(), source.len(), message.as_bytes().as_ptr(), message.len());
+    }
+}
+
+static LOGGER: GridLogger = GridLogger;
+
 /// The main entry point for this mod.
 #[no_mangle]
 extern "C" fn __entry_point() {
-    // The user's entry point. Our proc_macros will make sure it has this signature.
+    std::panic::set_hook(Box::new(panic_handler));
+
+    log::set_logger(&LOGGER).expect("Failed to set logger.");
+
+    // TODO give the host a way to control this.
+    log::set_max_level(LevelFilter::Trace);
+
+    log::info!("Logger set.");
+
+    // The user's entry point. Our proc_macros will make sure it has the proper signature.
     unsafe {
         __user_entry_point();
     }
@@ -44,6 +67,7 @@ extern "C" fn __spawn_dynamic_entity(type_id: u32) -> u64 {
     let constructor = unsafe { __get_initializer(type_id) };
     let entity = constructor();
     let pointer = Box::into_raw(entity);
+    log::info!("Logger set.");
 
     // This is ugly, I know, but the only good and safe solution was an RFC and it got axed.
     // So what are we doing here? Well a pointer in WASM is 32 bits, and this pointer to an
@@ -67,3 +91,33 @@ extern "C" fn __drop_dynamic_entity(address: u64) {
 
 /// A dynamic entity that can move from chunk to chunk.
 pub trait DynamicEntity {}
+
+struct GridLogger;
+
+impl log::Log for GridLogger {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
+        // We just fixed it to true for now. Might change that later.
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            let level = match record.level() {
+                Level::Error => 0,
+                Level::Warn => 1,
+                Level::Info => 2,
+                Level::Debug => 3,
+                Level::Trace => 4,
+            };
+
+            let source = format!("{}", record.target());
+            let message = format!("{}", record.args());
+
+            unsafe {
+                __log_message(level, source.as_bytes().as_ptr(), source.len(), message.as_bytes().as_ptr(), message.len());
+            }
+        }
+    }
+
+    fn flush(&self) {}
+}

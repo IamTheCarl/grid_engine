@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 grid_engine_wasm_api = { path = "../../wasm/grid_engine_wasm_api" }
+log = "0.4.11"
