@@ -4,14 +4,26 @@
 //! Management of web assembly assets.
 
 use crate::modules::PackageFile;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use log::Level;
 use std::ffi::c_void;
 use std::io::{Read, Seek};
 use std::path::PathBuf;
-use wasmer_runtime::{func, imports, Array, Ctx, Func, Instance, WasmPtr};
+use wasmer_runtime::{error::Error, func, imports, Array, Ctx, Func, Instance, WasmPtr};
 
-struct ModData {}
+fn process_wasm_result<T, E>(result: Result<T, E>) -> Result<T>
+where
+    E: std::fmt::Display,
+{
+    match result {
+        Ok(t) => Ok(t),
+        Err(error) => Err(anyhow!("WASM Error: {}", error)),
+    }
+}
+
+struct ModData {
+    name: String,
+}
 
 /// Represents a web assembly file in a module.
 pub struct WasmFile {
@@ -33,6 +45,7 @@ impl WasmFile {
             wasm.read_to_end(&mut wasm_binary)?;
         }
 
+        // We provide the mod with an API to communicate with us through.
         let imports = imports! {
             "grid_api" => {
                 "__log_message" => func!(move |ctx: &mut Ctx, level: u8, source: WasmPtr<u8, Array>, source_len: u32, message: WasmPtr<u8, Array>, message_len: u32| {
@@ -50,29 +63,22 @@ impl WasmFile {
                     };
                     let source = source.get_utf8_string(memory, source_len).expect("Could not fetch memory.");
                     let message = message.get_utf8_string(memory, message_len).expect("Could not fetch memory.");
-                    // TODO include the mod's name in this message.
-                    log::log!(level, "{}: {}", source, message);
+                    log::log!(level, "{} - {}: {}", mod_data.name, source, message);
                 })
             }
         };
 
         // We will need to create multiple instances from this modules, so store it separate from the modules.
         let module = wasmer_runtime::compile(&wasm_binary)?;
-        let wasm_instance = module.instantiate(&imports).unwrap();
+        let wasm_instance = process_wasm_result(module.instantiate(&imports))?;
 
         // We have to pin this so it won't get moved in memory and mess up our pointers.
         let mut wasm_file = WasmFile { wasm_instance };
         let root_context = wasm_file.wasm_instance.context_mut();
 
-        let user_data: *mut c_void = Box::into_raw(Box::new(ModData {})) as *mut c_void;
+        // TODO this isn't the best name. Should probably get the name from a config in the mod.
+        let user_data: *mut c_void = Box::into_raw(Box::new(ModData { name: String::from(file_name) })) as *mut c_void;
         root_context.data = user_data;
-
-        let __spawn_dynamic_entity: Func<u32, u64> = wasm_file.wasm_instance.exports.get("__spawn_dynamic_entity")?;
-        let __drop_dynamic_entity: Func<u64, ()> = wasm_file.wasm_instance.exports.get("__drop_dynamic_entity")?;
-
-        let pointer = __spawn_dynamic_entity.call(0).unwrap();
-        println!("Entity memory address in WASM: {:x}", pointer);
-        __drop_dynamic_entity.call(pointer).unwrap();
 
         wasm_file.run_entry_point()?;
 
@@ -82,7 +88,7 @@ impl WasmFile {
     fn run_entry_point(&self) -> Result<()> {
         let __entry_point: Func<(), ()> = self.wasm_instance.exports.get("__entry_point")?;
 
-        __entry_point.call().unwrap();
+        process_wasm_result(__entry_point.call())?;
 
         Ok(())
     }
