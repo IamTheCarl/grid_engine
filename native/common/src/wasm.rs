@@ -9,7 +9,7 @@ use log::Level;
 use std::ffi::c_void;
 use std::io::{Read, Seek};
 use std::path::PathBuf;
-use wasmer_runtime::{error::Error, func, imports, Array, Ctx, Func, Instance, WasmPtr};
+use wasmer_runtime::{func, imports, Array, Ctx, Func, Instance, WasmPtr};
 
 fn process_wasm_result<T, E>(result: Result<T, E>) -> Result<T>
 where
@@ -42,7 +42,7 @@ impl WasmFile {
                 package.get_wasm(&path).context("Error while fetching wasm file from package: File does not exist.")?;
 
             // Unpack it into memory.
-            wasm.read_to_end(&mut wasm_binary)?;
+            wasm.read_to_end(&mut wasm_binary).context("Error while reading web assembly file.")?;
         }
 
         // We provide the mod with an API to communicate with us through.
@@ -69,8 +69,8 @@ impl WasmFile {
         };
 
         // We will need to create multiple instances from this modules, so store it separate from the modules.
-        let module = wasmer_runtime::compile(&wasm_binary)?;
-        let wasm_instance = process_wasm_result(module.instantiate(&imports))?;
+        let module = wasmer_runtime::compile(&wasm_binary).context("Error compiling web assembly.")?;
+        let wasm_instance = process_wasm_result(module.instantiate(&imports)).context("Error instantiating WASM instance.1")?;
 
         // We have to pin this so it won't get moved in memory and mess up our pointers.
         let mut wasm_file = WasmFile { wasm_instance };
@@ -80,13 +80,14 @@ impl WasmFile {
         let user_data: *mut c_void = Box::into_raw(Box::new(ModData { name: String::from(file_name) })) as *mut c_void;
         root_context.data = user_data;
 
-        wasm_file.run_entry_point()?;
+        wasm_file.run_entry_point().context("Error while running mod's entry point.")?;
 
         Ok(wasm_file)
     }
 
     fn run_entry_point(&self) -> Result<()> {
-        let __entry_point: Func<(), ()> = self.wasm_instance.exports.get("__entry_point")?;
+        let __entry_point: Func<(), ()> =
+            self.wasm_instance.exports.get("__entry_point").context("Error finding mod's entry point.")?;
 
         process_wasm_result(__entry_point.call())?;
 
