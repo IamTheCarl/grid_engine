@@ -100,19 +100,19 @@ impl WasmFile {
         mod_data
     }
 
-    pub fn spawn_dynamic_entity(&self, type_id: u32) -> Result<WasmDynamicEntity> {
+    pub fn spawn_chunk_entity(&self, type_id: u32) -> Result<WasmChunkEntity> {
         // FIXME fetching this function every time we run is going to induce some slowdown. See if you can fix that.
-        let __spawn_dynamic_entity: Func<u32, u64> = self
+        let __spawn_chunk_entity: Func<u32, u64> = self
             .wasm_instance
             .exports
-            .get("__spawn_dynamic_entity")
-            .context("Failed to get __spawn_dynamic_entity function from wasm.")?;
+            .get("__spawn_chunk_entity")
+            .context("Failed to get __spawn_chunk_entity function from wasm.")?;
 
         // TODO we need an abstraction for the type_id.
-        let wasm_address = process_wasm_result(__spawn_dynamic_entity.call(type_id))?;
-        let __drop_dynamic_entity: Func<u64, ()> = self.wasm_instance.exports.get("__drop_dynamic_entity")?;
+        let wasm_address = process_wasm_result(__spawn_chunk_entity.call(type_id))?;
+        let __drop_chunk_entity: Func<u64, ()> = self.wasm_instance.exports.get("__drop_chunk_entity")?;
 
-        Ok(WasmDynamicEntity { wasm_address, __drop_dynamic_entity })
+        Ok(WasmChunkEntity { wasm_address, __drop_chunk_entity })
     }
 }
 
@@ -124,16 +124,16 @@ impl Drop for WasmFile {
     }
 }
 
-pub struct WasmDynamicEntity<'a> {
+pub struct WasmChunkEntity<'a> {
     wasm_address: u64,
-    __drop_dynamic_entity: Func<'a, u64, ()>,
+    __drop_chunk_entity: Func<'a, u64, ()>,
 }
 
-impl<'a> WasmDynamicEntity<'a> {}
+impl<'a> WasmChunkEntity<'a> {}
 
-impl<'a> Drop for WasmDynamicEntity<'a> {
+impl<'a> Drop for WasmChunkEntity<'a> {
     fn drop(&mut self) {
-        let result = process_wasm_result(self.__drop_dynamic_entity.call(self.wasm_address));
+        let result = process_wasm_result(self.__drop_chunk_entity.call(self.wasm_address));
         if let Err(error) = result {
             log::error!("Error while deleting chunk entity: {}", error);
         }

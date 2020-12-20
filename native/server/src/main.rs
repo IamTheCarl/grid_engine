@@ -33,8 +33,8 @@ fn trampoline() -> Result<()> {
     let mut package = PackageFile::load(std::io::BufReader::new(package))?;
     let wasm = WasmFile::load(&mut package, "entities")?;
 
-    let _dynamic_entity1 = wasm.spawn_dynamic_entity(0)?;
-    let _dynamic_entity2 = wasm.spawn_dynamic_entity(1)?;
+    let _chunk_entity1 = wasm.spawn_chunk_entity(0)?;
+    let _chunk_entity2 = wasm.spawn_chunk_entity(1)?;
 
     Ok(())
 }

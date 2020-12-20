@@ -55,19 +55,19 @@ pub fn entry_point(args: TokenStream, input: TokenStream) -> TokenStream {
     })
 }
 
-/// Create a list of dynamic entities provided by this mod.
+/// Create a list of chunk entities provided by this mod.
 #[proc_macro]
-pub fn dynamic_entities(input: TokenStream) -> TokenStream {
+pub fn chunk_entities(input: TokenStream) -> TokenStream {
     let list = syn::parse::<ExprArray>(input).unwrap();
 
     let length = list.elems.len();
     let items = list.elems.to_token_stream();
 
     TokenStream::from(quote! {
-        static __DYNAMIC_INITIALIZERS: [fn() -> Box<dyn DynamicEntity>; #length] = [#items];
+        static __DYNAMIC_INITIALIZERS: [fn() -> Box<dyn ChunkEntity>; #length] = [#items];
 
         #[no_mangle]
-        fn __get_initializer(type_id: u32) -> fn() -> Box<dyn DynamicEntity> {
+        fn __get_initializer(type_id: u32) -> fn() -> Box<dyn ChunkEntity> {
             assert!((type_id as usize) < __DYNAMIC_INITIALIZERS.len());
             __DYNAMIC_INITIALIZERS[type_id as usize]
         }

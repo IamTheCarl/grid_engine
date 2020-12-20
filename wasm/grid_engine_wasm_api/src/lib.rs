@@ -21,7 +21,7 @@ extern "C" {
 // Functions provided by the user.
 extern "Rust" {
     fn __user_entry_point();
-    fn __get_initializer(type_id: u32) -> fn() -> Box<dyn DynamicEntity>;
+    fn __get_initializer(type_id: u32) -> fn() -> Box<dyn ChunkEntity>;
 }
 
 fn panic_handler(hook: &PanicInfo) {
@@ -53,9 +53,9 @@ extern "C" fn __entry_point() {
     }
 }
 
-/// The engine will call this to request that an instance of a dynamic entity be created.
+/// The engine will call this to request that an instance of a chunk entity be created.
 #[no_mangle]
-extern "C" fn __spawn_dynamic_entity(type_id: u32) -> u64 {
+extern "C" fn __spawn_chunk_entity(type_id: u32) -> u64 {
     let constructor = unsafe { __get_initializer(type_id) };
     let entity = constructor();
     let pointer = Box::into_raw(entity);
@@ -72,8 +72,8 @@ extern "C" fn __spawn_dynamic_entity(type_id: u32) -> u64 {
 }
 
 #[no_mangle]
-extern "C" fn __drop_dynamic_entity(address: u64) {
-    let pointer = unsafe { std::mem::transmute::<_, *mut dyn DynamicEntity>(address) };
+extern "C" fn __drop_chunk_entity(address: u64) {
+    let pointer = unsafe { std::mem::transmute::<_, *mut dyn ChunkEntity>(address) };
     let entity = unsafe { Box::from_raw(pointer) };
 
     // Cool we got our entity back.
@@ -81,8 +81,8 @@ extern "C" fn __drop_dynamic_entity(address: u64) {
     drop(entity);
 }
 
-/// A dynamic entity that can move from chunk to chunk.
-pub trait DynamicEntity {}
+/// A chunk entity that can move from chunk to chunk.
+pub trait ChunkEntity {}
 
 struct GridLogger;
 
