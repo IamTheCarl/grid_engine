@@ -64,12 +64,29 @@ pub fn chunk_entities(input: TokenStream) -> TokenStream {
     let items = list.elems.to_token_stream();
 
     TokenStream::from(quote! {
-        static __DYNAMIC_INITIALIZERS: [fn() -> Box<dyn ChunkEntity>; #length] = [#items];
+        static __CHUNK_ENTITY_INITIALIZERS: [(&'static str, fn() -> Box<dyn ChunkEntity>); #length] = [#items];
 
         #[no_mangle]
-        fn __get_initializer(type_id: u32) -> fn() -> Box<dyn ChunkEntity> {
-            assert!((type_id as usize) < __DYNAMIC_INITIALIZERS.len());
-            __DYNAMIC_INITIALIZERS[type_id as usize]
+        fn __get_chunk_entity_initializer(type_id: u32) -> fn() -> Box<dyn ChunkEntity> {
+            assert!((type_id as usize) < __CHUNK_ENTITY_INITIALIZERS.len());
+            __CHUNK_ENTITY_INITIALIZERS[type_id as usize].1
+        }
+
+        #[no_mangle]
+        fn __register_chunk_entity_initializer_names() {
+
+            // Functions provided by the host.
+            #[link(wasm_import_module = "grid_api")]
+            extern "C" {
+                fn __register_chunk_entity_initializer_name(name: *const u8, name_len: usize);
+            }
+
+            for (name, _constructor) in &__CHUNK_ENTITY_INITIALIZERS {
+                log::info!("Registering chunk entity: {}", name);
+                unsafe {
+                    __register_chunk_entity_initializer_name(name.as_bytes().as_ptr(), name.len());
+                }
+            }
         }
     })
 }

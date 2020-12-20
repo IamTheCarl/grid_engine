@@ -3,7 +3,7 @@
 
 use grid_engine_wasm_api::*;
 
-chunk_entities!([TestChunkEntity1::initialize, TestChunkEntity2::initialize]);
+chunk_entities!([("TestChunkEntity1", TestChunkEntity1::initialize), ("TestChunkEntity2", TestChunkEntity2::initialize)]);
 
 #[entry_point]
 fn init() {}

@@ -18,10 +18,11 @@ extern "C" {
     fn __log_message(level: u8, source: *const u8, source_len: usize, message: *const u8, message_len: usize);
 }
 
-// Functions provided by the user.
+// Functions provided by the user (actually, macros used by the user).
 extern "Rust" {
     fn __user_entry_point();
-    fn __get_initializer(type_id: u32) -> fn() -> Box<dyn ChunkEntity>;
+    fn __get_chunk_entity_initializer(type_id: u32) -> fn() -> Box<dyn ChunkEntity>;
+    fn __register_chunk_entity_initializer_names();
 }
 
 fn panic_handler(hook: &PanicInfo) {
@@ -46,6 +47,10 @@ extern "C" fn __entry_point() {
     log::set_max_level(LevelFilter::Trace);
 
     log::info!("Logger set.");
+    log::info!("Registering chunk entity names.");
+    unsafe {
+        __register_chunk_entity_initializer_names();
+    }
 
     // The user's entry point. Our proc_macros will make sure it has the proper signature.
     unsafe {
@@ -56,7 +61,7 @@ extern "C" fn __entry_point() {
 /// The engine will call this to request that an instance of a chunk entity be created.
 #[no_mangle]
 extern "C" fn __spawn_chunk_entity(type_id: u32) -> u64 {
-    let constructor = unsafe { __get_initializer(type_id) };
+    let constructor = unsafe { __get_chunk_entity_initializer(type_id) };
     let entity = constructor();
     let pointer = Box::into_raw(entity);
 
