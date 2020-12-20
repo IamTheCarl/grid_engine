@@ -99,9 +99,21 @@ impl WasmFile {
         let mod_data = unsafe { root_context.data.cast::<ModData>().as_ref() }.expect("Internal mod data was not initialized.");
         mod_data
     }
-    // pub fn spawn_dynamic_entity(&self, type_id: u32) {
 
-    // }
+    pub fn spawn_dynamic_entity(&self, type_id: u32) -> Result<WasmDynamicEntity> {
+        // FIXME fetching this function every time we run is going to induce some slowdown. See if you can fix that.
+        let __spawn_dynamic_entity: Func<u32, u64> = self
+            .wasm_instance
+            .exports
+            .get("__spawn_dynamic_entity")
+            .context("Failed to get __spawn_dynamic_entity function from wasm.")?;
+
+        // TODO we need an abstraction for the type_id.
+        let wasm_address = process_wasm_result(__spawn_dynamic_entity.call(type_id))?;
+        let __drop_dynamic_entity: Func<u64, ()> = self.wasm_instance.exports.get("__drop_dynamic_entity")?;
+
+        Ok(WasmDynamicEntity { wasm_address, __drop_dynamic_entity })
+    }
 }
 
 impl Drop for WasmFile {
@@ -112,6 +124,18 @@ impl Drop for WasmFile {
     }
 }
 
-pub struct WasmDynamicEntity {}
+pub struct WasmDynamicEntity<'a> {
+    wasm_address: u64,
+    __drop_dynamic_entity: Func<'a, u64, ()>,
+}
 
-impl WasmDynamicEntity {}
+impl<'a> WasmDynamicEntity<'a> {}
+
+impl<'a> Drop for WasmDynamicEntity<'a> {
+    fn drop(&mut self) {
+        let result = process_wasm_result(self.__drop_dynamic_entity.call(self.wasm_address));
+        if let Err(error) = result {
+            log::error!("Error while deleting chunk entity: {}", error);
+        }
+    }
+}
