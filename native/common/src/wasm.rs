@@ -88,7 +88,6 @@ impl WasmFile {
     fn run_entry_point(&self) -> Result<()> {
         let __entry_point: Func<(), ()> =
             self.wasm_instance.exports.get("__entry_point").context("Error finding mod's entry point.")?;
-
         process_wasm_result(__entry_point.call())?;
 
         Ok(())

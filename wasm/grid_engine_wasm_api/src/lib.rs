@@ -59,7 +59,6 @@ extern "C" fn __spawn_chunk_entity(type_id: u32) -> u64 {
     let constructor = unsafe { __get_initializer(type_id) };
     let entity = constructor();
     let pointer = Box::into_raw(entity);
-    log::info!("Logger set.");
 
     // This is ugly, I know, but the only good and safe solution was an RFC and it got axed.
     // So what are we doing here? Well a pointer in WASM is 32 bits, and this pointer to an
