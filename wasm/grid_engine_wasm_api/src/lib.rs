@@ -85,9 +85,6 @@ extern "C" fn __drop_chunk_entity(address: u64) {
     drop(entity);
 }
 
-/// A chunk entity that can move from chunk to chunk.
-pub trait ChunkEntity {}
-
 struct GridLogger;
 
 impl log::Log for GridLogger {
@@ -117,3 +114,9 @@ impl log::Log for GridLogger {
 
     fn flush(&self) {}
 }
+
+/// A chunk entity that can move from chunk to chunk.
+pub trait ChunkEntity {}
+
+/// An entity that is always loaded.
+pub trait GlobalEntity {}

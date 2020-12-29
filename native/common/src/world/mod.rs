@@ -10,6 +10,7 @@ use std::{
     path::Path,
 };
 
+pub mod inventory;
 pub mod storage;
 mod time;
 pub use time::*;
