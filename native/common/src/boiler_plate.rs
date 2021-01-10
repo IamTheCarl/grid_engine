@@ -48,5 +48,11 @@ macro_rules! create_strong_type {
                 self.0.hash(state);
             }
         }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, stream: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+                self.0.fmt(stream)
+            }
+        }
     };
 }

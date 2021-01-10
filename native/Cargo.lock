@@ -532,6 +532,7 @@ dependencies = [
  "os_info",
  "pprof",
  "rand",
+ "rayon",
  "rsa",
  "serde",
  "simba",
