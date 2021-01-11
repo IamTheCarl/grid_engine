@@ -98,10 +98,6 @@ pub struct Entity {
 }
 
 impl Entity {
-    fn create() -> Entity {
-        Entity { events_to_process: Vec::new(), components: HashMap::new() }
-    }
-
     fn push_event(&mut self, event: EventContainer) {
         self.events_to_process.push(event);
     }
@@ -274,8 +270,8 @@ impl GridWorld {
     }
 
     /// Create a new entity in the world.
-    fn create_entity(&mut self) -> EntityID {
-        self.entities.insert(Mutex::new(Entity { events_to_process: Vec::new(), components: HashMap::new() }))
+    fn create_entity(&mut self, components: HashMap<String, Box<dyn Component>>) -> EntityID {
+        self.entities.insert(Mutex::new(Entity { events_to_process: Vec::new(), components }))
     }
 }
 
@@ -299,6 +295,14 @@ mod test {
     fn register_events() {
         let mut registry = EventTypeRegistry::new();
         register_inventory_events(&mut registry).unwrap();
+
+        assert_ne!(registry.get_event_type_id("core:MaterialAddEvent"), None);
+        assert_ne!(registry.get_event_type_id("core:MaterialRejectEvent"), None);
+
+        assert_ne!(registry.get_event_type_name(EventTypeID(0)), None);
+        assert_ne!(registry.get_event_type_name(EventTypeID(1)), None);
+
+        assert_ne!(registry.get_event_type_name(EventTypeID(0)), registry.get_event_type_name(EventTypeID(1)));
     }
 
     #[test]
@@ -307,6 +311,22 @@ mod test {
         let folder = tempdir().unwrap();
 
         let mut world = GridWorld::new(folder.path(), registry);
-        let _id = world.create_entity();
+        let _id = world.create_entity(HashMap::new());
+    }
+
+    #[test]
+    fn build_entity_with_inventory() {
+        let mut event_registry = EventTypeRegistry::new();
+        register_inventory_events(&mut event_registry).unwrap();
+
+        let folder = tempdir().unwrap();
+
+        let mut world = GridWorld::new(folder.path(), event_registry);
+        let mut components: HashMap<String, Box<dyn Component>> = HashMap::new();
+
+        let material_registry = MaterialRegistry::new();
+        components.insert(String::from("inventory"), Box::new(Inventory::infinite(&material_registry)));
+
+        let _id = world.create_entity(components);
     }
 }
