@@ -27,7 +27,7 @@ pub const CHUNK_DIAMETER: usize = 1 << BLOCK_ADDRESS_BITS;
 // That makes the chunk 8Kb in length.
 const CHUNK_LENGTH: usize = CHUNK_DIAMETER * CHUNK_DIAMETER * CHUNK_DIAMETER * 2;
 
-create_strong_type!(ChunkKey);
+create_strong_type!(ChunkKey, u64);
 
 /// The raw data for a chunk.
 pub struct ChunkData {

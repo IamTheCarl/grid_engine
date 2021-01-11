@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "client", "server", "cargo-grid"]
+members = ["common", "client", "server", "proc-macros", "cargo-grid"]
 
 [patch.crates-io]
 egui = { version = "0.3", git = "https://github.com/emilk/egui" }

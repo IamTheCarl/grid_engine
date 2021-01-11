@@ -5,13 +5,13 @@
 
 /// Creates an extra type safe u64 integer.
 macro_rules! create_strong_type {
-    ($name: ident) => {
+    ($name: ident, $types_type: ty) => {
         /// A type safe pointer to an object in a file.
         #[derive(Copy, Clone, Debug)]
-        pub struct $name(u64);
+        pub struct $name($types_type);
 
         impl std::ops::Deref for $name {
-            type Target = u64;
+            type Target = $types_type;
             fn deref(&self) -> &Self::Target {
                 &self.0
             }

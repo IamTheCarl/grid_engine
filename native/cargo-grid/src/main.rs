@@ -6,7 +6,6 @@ use colored::*;
 use common::modules::PackageMetadata;
 use std::{
     fs,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -82,9 +81,8 @@ fn pack_project(arguments: &Pack) {
                                                 .compression_method(zip::CompressionMethod::Bzip2);
 
                                             // Pack in metadata
-                                            let metadata = bincode::serialize(metadata)?;
                                             zip.start_file("META", options)?;
-                                            zip.write_all(&metadata)?;
+                                            serde_cbor::to_writer(&mut zip, &metadata)?;
 
                                             println!("Adding binary artifacts.");
                                             for artifact in artifacts {

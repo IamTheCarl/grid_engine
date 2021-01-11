@@ -7,7 +7,7 @@ license = "AGPL"
 
 [dependencies]
 anyhow = "1.0.32"
-bincode = "1.3.1"
+serde_cbor = "0.11.1"
 lazy_static = "1.4.0"
 log = "0.4.11"
 nalgebra = "0.22.0"
@@ -26,7 +26,8 @@ flate2 = "1.0.*"
 typetag = "0.1.6"
 simrs = "0.1.0"
 rayon = "1.4.1"
-# hashbrown = { version = "0.9.1", features = ["rayon"] }
+slotmap = "1.0.2"
+proc-macros = { path = "../proc-macros" }
 
 [dev-dependencies]
 tempfile = "3.1.0"

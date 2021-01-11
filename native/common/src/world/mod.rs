@@ -14,6 +14,10 @@ use std::{
     path::Path,
 };
 
+use slotmap::{new_key_type, SlotMap};
+
+pub use proc_macros::Event;
+
 pub mod inventory;
 pub mod storage;
 mod time;
@@ -22,68 +26,83 @@ pub use time::*;
 // Names of files and folders in a world save.
 const TERRAIN_FOLDER: &str = "terrain";
 
-create_strong_type!(EventTypeID);
-create_strong_type!(EntityID);
+create_strong_type!(EventTypeID, u32);
+new_key_type! { struct EntityID; }
 
-/// A message that one entity can send to another.
+/// Events must be serialized to be sent between entities. This container just keeps some essential data
+/// in an unsterilized format for the engine to make use of.
 #[derive(Eq, PartialEq)]
-pub struct Event {
+pub struct EventContainer {
     type_id: EventTypeID,
-    target_component: String,
+    source_entity_id: EntityID,
+    target_component_name: String,
     serialized_data: Vec<u8>,
 }
 
-impl PartialOrd for Event {
+impl PartialOrd for EventContainer {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.type_id.partial_cmp(&other.type_id)
     }
 }
 
-impl Ord for Event {
+impl Ord for EventContainer {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.type_id.cmp(&other.type_id)
     }
 }
 
+/// A message that one entity can send to another.
+pub trait Event: Send + Serialize + Deserialize<'static> {
+    /// The name that entities will use to identify this event's type.
+    fn type_name() -> String;
+}
+
 trait EventSender {
-    fn entities(&self) -> &HashMap<EntityID, Mutex<Entity>>;
+    fn entities(&self) -> &SlotMap<EntityID, Mutex<Entity>>;
 
     fn entities_to_update_tx(&self) -> &mpsc::Sender<EntityID>;
 
-    fn send_event_to_entity(&self, entity_id: EntityID, event: Event) -> Result<()> {
+    fn send_event_to_entity<EventData>(
+        &self, target_entity_id: EntityID, source_entity_id: EntityID, type_id: EventTypeID, target_component_name: &str,
+        event: &EventData,
+    ) -> Result<()>
+    where
+        EventData: Event,
+    {
         // Get the entity, push the event onto it.
-        let entity = self.entities().get(&entity_id).ok_or(anyhow!("Entity could not be found."))?;
-        entity.lock().push_event(event);
+        let entity = self.entities().get(target_entity_id).ok_or(anyhow!("Entity could not be found."))?;
+        entity.lock().push_event(EventContainer {
+            type_id,
+            source_entity_id,
+            target_component_name: String::from(target_component_name),
+            serialized_data: serde_cbor::to_vec(&event)?,
+        });
 
         // We got the entity earlier and didn't error out so we know this an id we can trust.
         // Mark it as needing to be updated.
-        self.entities_to_update_tx().send(entity_id).context("Entity may have been dropped")?;
+        self.entities_to_update_tx().send(target_entity_id).context("Entity may have been dropped")?;
 
         Ok(())
     }
 }
 
-/// A part of an entity that processes events. (The plan here is still a bit fuzzy)
-struct Component;
-
-impl Component {
-    fn process_event(&mut self, event: Event, event_sender: &LocalEventSender) {
-        unimplemented!()
-    }
+/// A part of an entity that processes events, adds behavior and storage.
+trait Component: Send {
+    fn process_event(&mut self, event: EventContainer, event_sender: &LocalEventSender) -> Result<()>;
 }
 
 /// An object that exists within the world.
 pub struct Entity {
-    events_to_process: Vec<Event>,
-    components: HashMap<String, Component>,
+    events_to_process: Vec<EventContainer>,
+    components: HashMap<String, Box<dyn Component>>,
 }
 
 impl Entity {
     fn create() -> Entity {
-        unimplemented!()
+        Entity { events_to_process: Vec::new(), components: HashMap::new() }
     }
 
-    fn push_event(&mut self, event: Event) {
+    fn push_event(&mut self, event: EventContainer) {
         self.events_to_process.push(event);
     }
 
@@ -94,7 +113,7 @@ impl Entity {
 
         // We consume the individual elements of the vector, leaving it empty after.
         for event in self.events_to_process.drain(..) {
-            let component = self.components.get_mut(&event.target_component);
+            let component = self.components.get_mut(&event.target_component_name);
 
             // TODO make this error happen when the user first queues the event, rather than now.
             if let Some(component) = component {
@@ -103,7 +122,7 @@ impl Entity {
                 log::warn!(
                     "Tried to process event type {} on non existent component {}.",
                     event.type_id,
-                    event.target_component
+                    event.target_component_name
                 );
             }
         }
@@ -111,17 +130,61 @@ impl Entity {
 }
 
 struct LocalEventSender<'a> {
-    entities: &'a HashMap<EntityID, Mutex<Entity>>,
+    entities: &'a SlotMap<EntityID, Mutex<Entity>>,
     entities_to_update_tx: &'a mpsc::Sender<EntityID>,
 }
 
 impl<'a> EventSender for LocalEventSender<'a> {
-    fn entities(&self) -> &HashMap<EntityID, Mutex<Entity>> {
+    fn entities(&self) -> &SlotMap<EntityID, Mutex<Entity>> {
         self.entities
     }
 
     fn entities_to_update_tx(&self) -> &mpsc::Sender<EntityID> {
         self.entities_to_update_tx
+    }
+}
+
+/// Used to track event type IDs and names.
+pub struct EventTypeRegistry {
+    event_type_ids: HashMap<String, u32>,
+    event_type_names: Vec<String>,
+}
+
+impl EventTypeRegistry {
+    /// Create a new event registry.
+    pub fn new() -> EventTypeRegistry {
+        EventTypeRegistry { event_type_ids: HashMap::new(), event_type_names: Vec::new() }
+    }
+
+    /// Register an event message so that it can be sent between entities.
+    pub fn register_event_message<EventType>(&mut self, package_name: &str) -> Result<()>
+    where
+        EventType: Event,
+    {
+        self.register_event_message_raw(package_name, &EventType::type_name())
+    }
+
+    /// Register an event's type but you have to provide the event type name yourself.
+    pub fn register_event_message_raw(&mut self, package_name: &str, event_name: &str) -> Result<()> {
+        if !package_name.contains(':') && !event_name.contains(':') {
+            let name = format!("{}:{}", package_name, event_name);
+            self.event_type_ids.insert(name.clone(), self.event_type_ids.len() as u32);
+            self.event_type_names.push(name);
+
+            Ok(())
+        } else {
+            Err(anyhow!("An event's name cannot contain a '/'."))
+        }
+    }
+
+    /// Get the id of an event type from its type name.
+    pub fn get_event_type_id(&self, event_name: &str) -> Option<EventTypeID> {
+        self.event_type_ids.get(event_name).map(|id| EventTypeID(*id))
+    }
+
+    /// Get the name of an event type from its type id.
+    pub fn get_event_type_name(&self, event_id: EventTypeID) -> Option<&str> {
+        self.event_type_names.get(event_id.0 as usize).map(|s| s.as_str())
     }
 }
 
@@ -141,20 +204,28 @@ pub struct GridWorld {
     time: WorldTime,
     storage: storage::ChunkDiskStorage,
     terrain_chunks: HashMap<(i16, i16, i16), Chunk>,
-    entities: HashMap<EntityID, Mutex<Entity>>,
+    entities: SlotMap<EntityID, Mutex<Entity>>,
     entities_to_update_rx: mpsc::Receiver<EntityID>,
     entities_to_update_tx: mpsc::Sender<EntityID>,
+    event_type_registry: EventTypeRegistry,
 }
 
 impl GridWorld {
-    pub fn new(folder: &Path, event_type_list: Vec<String>) -> GridWorld {
+    /// Create a new world with local storage.
+    pub fn new(folder: &Path, event_type_registry: EventTypeRegistry) -> GridWorld {
         let storage = storage::ChunkDiskStorage::initialize(&folder.join(TERRAIN_FOLDER), 6);
         let terrain_chunks = HashMap::new();
         let time = WorldTime::from_ms(0);
-        let entities = HashMap::new();
+        let entities = SlotMap::with_key();
+        let next_entity_id = 0;
         let (entities_to_update_tx, entities_to_update_rx) = mpsc::channel();
 
-        GridWorld { time, storage, terrain_chunks, entities, entities_to_update_rx, entities_to_update_tx }
+        GridWorld { time, storage, terrain_chunks, entities, entities_to_update_rx, entities_to_update_tx, event_type_registry }
+    }
+
+    /// Get the event type registry for this world.
+    pub fn get_event_type_registry(&self) -> &EventTypeRegistry {
+        &self.event_type_registry
     }
 
     /// Update the entities of the world.
@@ -187,7 +258,7 @@ impl GridWorld {
 
                         // It shouldn't be possible for an entity to be deleted before its events are processed,
                         // so this should never panic.
-                        let entity = &entities[entity_id];
+                        let entity = &entities[*entity_id];
                         entity.lock().process_events(&event_sender);
                     },
                 );
@@ -201,10 +272,15 @@ impl GridWorld {
         // Report how many events were processed
         num_events
     }
+
+    /// Create a new entity in the world.
+    fn create_entity(&mut self) -> EntityID {
+        self.entities.insert(Mutex::new(Entity { events_to_process: Vec::new(), components: HashMap::new() }))
+    }
 }
 
 impl EventSender for GridWorld {
-    fn entities(&self) -> &HashMap<EntityID, Mutex<Entity>> {
+    fn entities(&self) -> &SlotMap<EntityID, Mutex<Entity>> {
         &self.entities
     }
 
@@ -216,5 +292,21 @@ impl EventSender for GridWorld {
 #[cfg(test)]
 mod test {
     use super::*;
+    use inventory::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn register_events() {
+        let mut registry = EventTypeRegistry::new();
+        register_inventory_events(&mut registry).unwrap();
+    }
+
+    #[test]
+    fn build_empty_entity() {
+        let registry = EventTypeRegistry::new();
+        let folder = tempdir().unwrap();
+
+        let mut world = GridWorld::new(folder.path(), registry);
+        let _id = world.create_entity();
+    }
 }

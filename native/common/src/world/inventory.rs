@@ -3,9 +3,12 @@
 
 //! Management of entity inventory and material/item transfers.
 
+use super::{Component, Event, EventContainer, LocalEventSender};
+use crate::world::EventTypeRegistry;
+use anyhow::Result;
 use core::hash::Hash;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 
 /// A unique ID to identify materials.
@@ -76,4 +79,26 @@ impl<'a> Inventory<'a> {
     }
 
     pub fn add_material(material_stack: MaterialStack) {}
+}
+
+const CORE_MODULE_NAME: &str = "core";
+
+/// Register inventory events with the event registry.
+pub fn register_inventory_events(registry: &mut EventTypeRegistry) -> Result<()> {
+    registry.register_event_message::<MaterialAddEvent>(CORE_MODULE_NAME)?;
+    registry.register_event_message::<MaterialRejectEvent>(CORE_MODULE_NAME)?;
+
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize, Event)]
+struct MaterialAddEvent;
+
+#[derive(Serialize, Deserialize, Event)]
+struct MaterialRejectEvent;
+
+impl<'a> Component for Inventory<'a> {
+    fn process_event(&mut self, event: EventContainer, event_sender: &LocalEventSender) -> Result<()> {
+        todo!()
+    }
 }

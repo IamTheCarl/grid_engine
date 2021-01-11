@@ -53,7 +53,7 @@ impl<R: Read + Seek> PackageFile<R> {
 
             match file_name {
                 "META" => {
-                    metadata = Some(bincode::deserialize_from(file)?);
+                    metadata = Some(serde_cbor::from_reader(file)?);
                 }
                 _ => {
                     let file_path = PathBuf::from(file.name());
