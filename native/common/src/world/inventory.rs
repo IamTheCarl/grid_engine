@@ -4,14 +4,13 @@
 //! Management of entity inventory and material/item transfers.
 
 use super::{Component, Event, EventContainer, LocalEventSender};
-use crate::world::EventTypeRegistry;
 use anyhow::Result;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::marker::PhantomData;
 
 /// A unique ID to identify materials.
+#[derive(Serialize, Deserialize)]
 pub struct MaterialID(u32);
 
 impl Hash for MaterialID {
@@ -24,6 +23,7 @@ impl Hash for MaterialID {
 }
 
 /// Information about a material.
+#[derive(Serialize, Deserialize)]
 struct Material {
     name_tag: String,
     density: f32,
@@ -53,6 +53,7 @@ impl MaterialRegistry {
 }
 
 /// A stack of material.
+#[derive(Serialize, Deserialize)]
 pub struct MaterialStack {
     material: Material,
     quantity: u64,
@@ -76,12 +77,12 @@ pub struct Inventory {
 
 impl Inventory {
     /// Create an inventory with a limited capacity.
-    pub fn limited(_registry: &MaterialRegistry, mass_limit: f32) -> Inventory {
+    pub fn limited(mass_limit: f32) -> Inventory {
         Inventory { material_stacks: HashSet::new(), mass: 0.0, mass_limit: Some(mass_limit) }
     }
 
     /// Create an inventory with no limit to its capacity.
-    pub fn infinite(_registry: &MaterialRegistry) -> Inventory {
+    pub fn infinite() -> Inventory {
         Inventory { material_stacks: HashSet::new(), mass: 0.0, mass_limit: None }
     }
 
@@ -94,18 +95,12 @@ impl Component for Inventory {
     }
 }
 
-const CORE_MODULE_NAME: &str = "core";
-
-/// Register inventory events with the event registry.
-pub fn register_inventory_events(registry: &mut EventTypeRegistry) -> Result<()> {
-    registry.register_event_message::<MaterialAddEvent>(CORE_MODULE_NAME)?;
-    registry.register_event_message::<MaterialRejectEvent>(CORE_MODULE_NAME)?;
-
-    Ok(())
+#[derive(Serialize, Deserialize, Event)]
+pub struct MaterialAddEvent {
+    // stack: MaterialStack,
 }
 
 #[derive(Serialize, Deserialize, Event)]
-struct MaterialAddEvent;
-
-#[derive(Serialize, Deserialize, Event)]
-struct MaterialRejectEvent;
+struct MaterialRejectEvent {
+    // stack: MaterialStack,
+}
