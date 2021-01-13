@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 /// A unique ID to identify materials.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct MaterialID(u32);
 
 impl Hash for MaterialID {
@@ -24,13 +24,30 @@ impl Hash for MaterialID {
 
 /// Information about a material.
 #[derive(Serialize, Deserialize)]
-struct Material {
+pub struct MaterialInfo {
     name_tag: String,
     density: f32,
     material_id: MaterialID,
 }
 
-impl<'a> Hash for Material {
+impl MaterialInfo {
+    /// Get the name tag for this material.
+    pub fn name_tag(&self) -> &str {
+        &self.name_tag
+    }
+
+    /// Get the density of the material.
+    pub fn density(&self) -> f32 {
+        self.density
+    }
+
+    /// Get the unique key for identifying this material in this registry.
+    pub fn id(&self) -> MaterialID {
+        self.material_id
+    }
+}
+
+impl<'a> Hash for MaterialInfo {
     fn hash<H>(&self, hasher: &mut H)
     where
         H: std::hash::Hasher,
@@ -41,7 +58,7 @@ impl<'a> Hash for Material {
 
 /// A collection of information about many materials.
 pub struct MaterialRegistry {
-    materials: Vec<Material>,
+    materials: Vec<MaterialInfo>,
     names_to_ids: HashMap<String, MaterialID>, // TODO might the slotmap be better for this?
 }
 
@@ -50,13 +67,37 @@ impl MaterialRegistry {
     pub fn new() -> MaterialRegistry {
         MaterialRegistry { materials: Vec::new(), names_to_ids: HashMap::new() }
     }
+
+    /// Register a new material with the registry.
+    pub fn register_material(&mut self, name_tag: String, density: f32) {
+        self.names_to_ids.insert(name_tag.clone(), MaterialID(self.materials.len() as u32));
+
+        self.materials.push(MaterialInfo { name_tag, density, material_id: MaterialID(self.materials.len() as u32) });
+    }
+
+    /// Get the ID for a material.
+    pub fn get_material_id(&self, name: &str) -> Option<MaterialID> {
+        self.names_to_ids.get(name).copied()
+    }
+
+    /// Get information about a material by its ID.
+    pub fn get_material_info(&self, material_id: MaterialID) -> Option<&MaterialInfo> {
+        self.materials.get(material_id.0 as usize)
+    }
 }
 
 /// A stack of material.
 #[derive(Serialize, Deserialize)]
 pub struct MaterialStack {
-    material: Material,
+    material: MaterialID,
     quantity: u64,
+}
+
+impl MaterialStack {
+    /// Create a new inventory stack of material.
+    pub fn new(material: MaterialID, quantity: u64) -> MaterialStack {
+        MaterialStack { material, quantity }
+    }
 }
 
 impl Hash for MaterialStack {
@@ -91,16 +132,14 @@ impl Inventory {
 
 impl Component for Inventory {
     fn process_event(&mut self, event: EventContainer, event_sender: &LocalEventSender) -> Result<()> {
-        todo!()
+        // TODO process event.
+        Ok(())
     }
 }
 
 #[derive(Serialize, Deserialize, Event)]
-pub struct MaterialAddEvent {
-    // stack: MaterialStack,
-}
-
-#[derive(Serialize, Deserialize, Event)]
-struct MaterialRejectEvent {
-    // stack: MaterialStack,
+pub enum MaterialEvent {
+    Add { stack: MaterialStack },
+    Request { stack: MaterialStack },
+    Refuse { stack: MaterialStack },
 }

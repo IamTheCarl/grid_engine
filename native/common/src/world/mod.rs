@@ -8,13 +8,12 @@ use anyhow::{anyhow, Context, Result};
 use core::cmp::{Eq, Ordering, PartialEq, PartialOrd};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use slotmap::{new_key_type, SlotMap};
 use std::sync::mpsc;
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
 };
-
-use slotmap::{new_key_type, SlotMap};
 
 pub use proc_macros::Event;
 
@@ -26,7 +25,8 @@ pub use time::*;
 // Names of files and folders in a world save.
 const TERRAIN_FOLDER: &str = "terrain";
 
-new_key_type! { struct EntityID; }
+new_key_type! { pub struct EntityID; }
+create_strong_type!(EventID, u64);
 
 /// Events must be serialized to be sent between entities. This container just keeps some essential data
 /// in an unsterilized format for the engine to make use of.
@@ -83,7 +83,8 @@ trait EventSender {
 }
 
 /// A part of an entity that processes events, adds behavior and storage.
-trait Component: Send {
+pub trait Component: Send {
+    /// The component will process a single event.
     fn process_event(&mut self, event: EventContainer, event_sender: &LocalEventSender) -> Result<()>;
 }
 
@@ -109,6 +110,7 @@ impl Entity {
 
             // TODO make this error happen when the user first queues the event, rather than now.
             if let Some(component) = component {
+                // TODO should probably delete the entity when this happens.
                 component.process_event(event, event_sender);
             } else {
                 log::warn!("Tried to process event on non existent component {}.", event.target_component_name);
@@ -117,7 +119,7 @@ impl Entity {
     }
 }
 
-struct LocalEventSender<'a> {
+pub struct LocalEventSender<'a> {
     entities: &'a SlotMap<EntityID, Mutex<Entity>>,
     entities_to_update_tx: &'a mpsc::Sender<EntityID>,
 }
@@ -160,7 +162,6 @@ impl GridWorld {
         let terrain_chunks = HashMap::new();
         let time = WorldTime::from_ms(0);
         let entities = SlotMap::with_key();
-        let next_entity_id = 0;
         let (entities_to_update_tx, entities_to_update_rx) = mpsc::channel();
 
         GridWorld { time, storage, terrain_chunks, entities, entities_to_update_rx, entities_to_update_tx }
@@ -178,6 +179,7 @@ impl GridWorld {
         loop {
             // Remove all duplicates from the queue of entities we got. We use a HashSet to do that.
             let entities_to_update_set: HashSet<EntityID> = self.entities_to_update_rx.try_iter().collect();
+            println!("SET: {:?}", entities_to_update_set);
 
             // Number of events to process.
             let events_processed = entities_to_update_set.len();
@@ -212,11 +214,12 @@ impl GridWorld {
     }
 
     /// Create a new entity in the world.
-    fn create_entity(&mut self, components: HashMap<String, Box<dyn Component>>) -> EntityID {
+    pub fn create_entity(&mut self, components: HashMap<String, Box<dyn Component>>) -> EntityID {
         self.entities.insert(Mutex::new(Entity { events_to_process: Vec::new(), components }))
     }
 
-    fn push_event<EventType>(
+    /// Push an event message to an entity.
+    pub fn push_event<EventType>(
         &self, target_entity_id: EntityID, source_entity_id: Option<EntityID>, target_component_name: String, event: &EventType,
     ) -> Result<()>
     where
@@ -226,6 +229,8 @@ impl GridWorld {
         let serialized_data = serde_cbor::to_vec(event).context("Error while serializing event.")?;
 
         entity.lock().push_event(EventContainer { source_entity_id, target_component_name, serialized_data });
+
+        self.entities_to_update_tx.send(target_entity_id).context("Error marking entity for update.")?;
 
         Ok(())
     }
@@ -281,10 +286,22 @@ mod test {
 
         let entity_id = world.create_entity(components);
 
-        world.push_event(entity_id, None, String::from("inventory"), &MaterialAddEvent {}).unwrap();
+        let mut material_registry = MaterialRegistry::new();
+        material_registry.register_material(String::from("obamium"), 4.2);
+        let material_registry = material_registry; // Re-define without mutability.
 
-        world.update();
+        let material_id = material_registry.get_material_id("obamium").unwrap();
 
-        // TODO test that the event was actually processed.
+        world
+            .push_event(
+                entity_id,
+                None,
+                String::from("inventory"),
+                &MaterialEvent::Add { stack: MaterialStack::new(material_id, 15) },
+            )
+            .unwrap();
+
+        let event_count = world.update();
+        assert_eq!(event_count, 1, "Wrong number of events processed.");
     }
 }
