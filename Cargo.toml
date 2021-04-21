@@ -1,5 +1,8 @@
 [workspace]
-members = ["test_ui", "entities"]
+members = ["common", "client", "server"]
+
+[patch.crates-io]
+egui = { version = "0.3", git = "https://github.com/emilk/egui" }
 
 # Release build uses every possible optimization.
 [profile.release]

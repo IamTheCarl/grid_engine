@@ -1,9 +1,0 @@
-
-# We currently don't have a way to test these packages.
-[tasks.test]
-disabled = true
-
-[tasks.pack]
-workspace = false
-command = "../native/target/debug/cargo-grid"
-args = ["pack"]

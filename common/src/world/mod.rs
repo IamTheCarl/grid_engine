@@ -14,8 +14,6 @@ use std::{
     path::Path,
 };
 
-pub use proc_macros::Event;
-
 // pub mod inventory;
 pub mod storage;
 mod time;

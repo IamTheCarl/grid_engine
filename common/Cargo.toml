@@ -27,7 +27,6 @@ typetag = "0.1.6"
 simrs = "0.1.0"
 rayon = "1.4.1"
 slotmap = "1.0.2"
-proc-macros = { path = "../proc-macros" }
 
 [dev-dependencies]
 tempfile = "3.1.0"
