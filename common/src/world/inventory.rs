@@ -3,7 +3,6 @@
 
 //! Management of entity inventory and material/item transfers.
 
-use super::Component;
 use core::hash::Hash;
 use derive_error;
 use serde::{Deserialize, Serialize};
@@ -26,7 +25,7 @@ impl Hash for MaterialID {
 #[derive(Serialize, Deserialize)]
 pub struct MaterialInfo {
     name_tag: String,
-    density: f32,
+    density: u64,
     material_id: MaterialID,
 }
 
@@ -37,7 +36,7 @@ impl MaterialInfo {
     }
 
     /// Get the density of the material.
-    pub fn density(&self) -> f32 {
+    pub fn density(&self) -> u64 {
         self.density
     }
 
@@ -69,7 +68,7 @@ impl MaterialRegistry {
     }
 
     /// Register a new material with the registry.
-    pub fn register_material(&mut self, name_tag: String, density: f32) {
+    pub fn register_material(&mut self, name_tag: String, density: u64) {
         self.names_to_ids.insert(name_tag.clone(), MaterialID(self.materials.len() as u32));
 
         self.materials.push(MaterialInfo { name_tag, density, material_id: MaterialID(self.materials.len() as u32) });

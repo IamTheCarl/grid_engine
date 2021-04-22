@@ -3,14 +3,7 @@
 
 //! Mechanisms and components revolving around what the player sees as a world.
 
-use anyhow::{anyhow, Context, Result};
-use core::cmp::{Eq, Ordering, PartialEq, PartialOrd};
-use serde::{Deserialize, Serialize};
-use slotmap::{new_key_type, SlotMap};
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
+use std::{collections::HashMap, path::Path};
 
 pub mod inventory;
 pub mod storage;
@@ -19,16 +12,6 @@ pub use time::*;
 
 // Names of files and folders in a world save.
 const TERRAIN_FOLDER: &str = "terrain";
-
-new_key_type! { pub struct EntityID; }
-create_strong_type!(EventID, u64);
-
-pub trait Component {}
-
-/// An object that exists within the world.
-pub struct Entity {
-    components: HashMap<String, Box<dyn Component>>,
-}
 
 pub struct Chunk {
     storage: Option<Box<storage::ChunkData>>,
@@ -46,7 +29,6 @@ pub struct GridWorld {
     time: WorldTime,
     storage: storage::ChunkDiskStorage,
     terrain_chunks: HashMap<(i16, i16, i16), Chunk>,
-    entities: SlotMap<EntityID, Entity>,
 }
 
 impl GridWorld {
@@ -55,18 +37,12 @@ impl GridWorld {
         let storage = storage::ChunkDiskStorage::initialize(&folder.join(TERRAIN_FOLDER), 6);
         let terrain_chunks = HashMap::new();
         let time = WorldTime::from_ms(0);
-        let entities = SlotMap::with_key();
 
-        GridWorld { time, storage, terrain_chunks, entities }
+        GridWorld { time, storage, terrain_chunks }
     }
 
     /// Update the entities of the world.
     pub fn update(&mut self) {}
-
-    /// Create a new entity in the world.
-    pub fn create_entity(&mut self, components: HashMap<String, Box<dyn Component>>) -> EntityID {
-        self.entities.insert(Entity { components })
-    }
 }
 
 #[cfg(test)]

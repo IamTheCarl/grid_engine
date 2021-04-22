@@ -10,7 +10,6 @@ pub mod modules;
 #[macro_use]
 mod boiler_plate;
 // pub mod scheduler;
-pub mod wasm;
 pub mod world;
 
 use anyhow::Result;
