@@ -3,9 +3,9 @@
 
 //! Management of entity inventory and material/item transfers.
 
-use super::{Component, Event, EventContainer, LocalEventSender};
-use anyhow::Result;
+use super::Component;
 use core::hash::Hash;
+use derive_error;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -112,34 +112,23 @@ impl Hash for MaterialStack {
 /// A collection of many stacks of materials, plus items.
 pub struct Inventory {
     material_stacks: HashSet<MaterialStack>,
-    mass: f32,
-    mass_limit: Option<f32>,
+    mass: u64,
+    mass_limit: Option<u64>,
 }
 
 impl Inventory {
     /// Create an inventory with a limited capacity.
-    pub fn limited(mass_limit: f32) -> Inventory {
-        Inventory { material_stacks: HashSet::new(), mass: 0.0, mass_limit: Some(mass_limit) }
+    pub fn limited(mass_limit: u64) -> Inventory {
+        Inventory { material_stacks: HashSet::new(), mass: 0, mass_limit: Some(mass_limit) }
     }
 
     /// Create an inventory with no limit to its capacity.
     pub fn infinite() -> Inventory {
-        Inventory { material_stacks: HashSet::new(), mass: 0.0, mass_limit: None }
+        Inventory { material_stacks: HashSet::new(), mass: 0, mass_limit: None }
     }
 
-    pub fn add_material(material_stack: MaterialStack) {}
-}
-
-impl Component for Inventory {
-    fn process_event(&mut self, event: EventContainer, event_sender: &LocalEventSender) -> Result<()> {
-        // TODO process event.
-        Ok(())
+    /// Add or remove material in the inventory.
+    pub fn add_material(&mut self, _material: MaterialID, _quantity: i64) {
+        unimplemented!()
     }
-}
-
-#[derive(Serialize, Deserialize, Event)]
-pub enum MaterialEvent {
-    Add { stack: MaterialStack },
-    Request { stack: MaterialStack },
-    Refuse { stack: MaterialStack },
 }

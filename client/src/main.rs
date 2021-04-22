@@ -11,17 +11,17 @@ use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-use native_dialog::{Dialog, MessageAlert, MessageType};
+use native_dialog::{MessageDialog, MessageType};
 
 use anyhow::{Context, Result};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
-mod client;
+// mod client;
 // mod users;
 mod ecs;
 mod gui;
 
-use client::Client;
+// use client::Client;
 
 fn main() {
     let result = trampoline();
@@ -32,8 +32,9 @@ fn main() {
         log::error!("Error setting up client: {:?}", error);
 
         // Now attempt to show it in a window.
-        let dialog = MessageAlert { title: "Critical Error", text: &format!("{:?}", error), typ: MessageType::Error };
-        let result = dialog.show();
+        let message = format!("{:?}", error);
+        let dialog = MessageDialog::new().set_title("Critical Error").set_text(&message).set_type(MessageType::Error);
+        let result = dialog.show_confirm();
 
         if let Err(error) = result {
             // If that failed too, report it too.
@@ -54,12 +55,12 @@ fn trampoline() -> Result<()> {
 
     // These are the only two things that can fail.
     let window = WindowBuilder::new().build(&event_loop).context("Error creating window.")?;
-    let mut client = Client::create_with_window(window).context("Error setting up graphics system.")?;
+    // let mut client = Client::create_with_window(window).context("Error setting up graphics system.")?;
 
     event_loop.run(move |event, _, control_flow| {
-        let new_flow = client.process_event(&event);
-        if let Some(new_flow) = new_flow {
-            *control_flow = new_flow;
-        }
+        // let new_flow = client.process_event(&event);
+        // if let Some(new_flow) = new_flow {
+        //     *control_flow = new_flow;
+        // }
     });
 }

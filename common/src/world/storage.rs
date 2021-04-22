@@ -63,7 +63,7 @@ impl<'de> Deserialize<'de> for Box<ChunkData> {
             X,
             Y,
             Z,
-        };
+        }
 
         struct ChunkVistor;
 

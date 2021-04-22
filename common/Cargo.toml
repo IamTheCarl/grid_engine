@@ -6,32 +6,33 @@ edition = "2018"
 license = "AGPL"
 
 [dependencies]
-anyhow = "1.0.32"
-serde_cbor = "0.11.1"
-lazy_static = "1.4.0"
-log = "0.4.11"
-nalgebra = "0.22.0"
-num-traits = "0.2.12"
-os_info = "3.0.0"
-rand = "0.7.3"
-rsa = "0.3.0"
-serde = "1.0.116"
-simba = { version = "0.2.0", features = ["partial_fixed_point_support"] }
-sys-info = "0.7.0"
-wasmer-runtime = "0.17.1"
-zip = { version = "0.5.8", features = ["bzip2"] }
-static_assertions = "1.1.0"
-antidote = "1.0.0"
-flate2 = "1.0.*"
-typetag = "0.1.6"
-simrs = "0.1.0"
-rayon = "1.4.1"
-slotmap = "1.0.2"
+anyhow = "1.0"
+derive-error = "0.0"
+serde_cbor = "0.11"
+lazy_static = "1.4"
+log = "0.4"
+nalgebra = "0.26"
+num-traits = "0.2"
+os_info = "3.0"
+rand = "0.8"
+rsa = "0.4"
+serde = "1.0"
+simba = { version = "0.4.0", features = ["partial_fixed_point_support"] }
+sys-info = "0.9.0"
+wasmer-runtime = "0.17"
+zip = { version = "0.5", features = ["bzip2"] }
+static_assertions = "1.1"
+antidote = "1.0"
+flate2 = "1.0"
+typetag = "0.1"
+simrs = "0.1"
+rayon = "1.4"
+slotmap = "1.0"
 
 [dev-dependencies]
-tempfile = "3.1.0"
-criterion = "0.3.3"
-pprof = { version = "0.3.18", features = ["flamegraph"] }
+tempfile = "3.1"
+criterion = "0.3"
+pprof = { version = "0.4", features = ["flamegraph"] }
 
 [[bench]]
 name = "benchmarks"

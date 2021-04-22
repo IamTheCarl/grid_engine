@@ -7,8 +7,8 @@ use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
 use chrono::Timelike;
-use egui::app::App;
-use egui::paint::FontDefinitions;
+// use egui::app::App;
+// use egui::paint::FontDefinitions;
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit_platform::{Platform, PlatformDescriptor};
 use legion::*;
@@ -30,29 +30,6 @@ struct Vertex {
     position: [f32; 3],
     color: [f32; 3],
 }
-
-impl Vertex {
-    fn desc<'a>() -> wgpu::VertexBufferDescriptor<'a> {
-        wgpu::VertexBufferDescriptor {
-            stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::InputStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttributeDescriptor { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float3 },
-                wgpu::VertexAttributeDescriptor {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float3,
-                },
-            ],
-        }
-    }
-}
-
-const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
-];
 
 #[derive(FromArgs)]
 /// Grid Locked, the Game, finally becoming a reality this time I swear.
@@ -82,8 +59,6 @@ pub struct Client {
     // Egui stuff.
     platform: Platform,
     egui_rpass: RenderPass,
-    demo_app: egui::demos::DemoApp,
-    demo_env: egui::demos::DemoEnvironment,
 
     // World simulation stuff.
     thread_pool: ThreadPool,
@@ -94,7 +69,7 @@ impl Client {
     async fn request_device(adapter: &Adapter) -> Result<(Device, Queue), RequestDeviceError> {
         adapter
             .request_device(
-                &DeviceDescriptor { features: Features::empty(), limits: Limits::default(), shader_validation: true },
+                &DeviceDescriptor { features: Features::empty(), limits: Limits::default(), label: None },
                 None, // Trace path
             )
             .await
@@ -103,7 +78,7 @@ impl Client {
     async fn request_adapter(instance: &Instance, surface: &Surface) -> Option<Adapter> {
         instance
             .request_adapter(&RequestAdapterOptions {
-                power_preference: PowerPreference::Default,
+                power_preference: PowerPreference::HighPerformance, // TODO make this an option.
                 compatible_surface: Some(surface),
             })
             .await
