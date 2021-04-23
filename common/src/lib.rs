@@ -5,7 +5,9 @@
 
 #![warn(missing_docs)]
 
-pub mod modules;
+#[macro_use]
+extern crate static_assertions;
+
 // pub mod networking;
 #[macro_use]
 mod boiler_plate;
