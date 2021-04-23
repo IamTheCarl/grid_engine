@@ -3,22 +3,22 @@
 
 //! Long term storage of the world on the local disk.
 
+use super::ChunkCoordinate;
 use anyhow::{Context, Result};
 use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
 use fs::File;
-use serde::{
-    de::{self, Deserializer, MapAccess, SeqAccess, Visitor},
-    ser::{SerializeStruct, Serializer},
-    Deserialize, Serialize,
-};
 use std::{
-    fmt, fs,
+    fs,
     io::{BufReader, BufWriter, Cursor, Read, Write},
     path::{Path, PathBuf},
 };
 
 /// The number of bits in a block address that are specific to the block, and not part of the the chunk's address.
 pub const BLOCK_ADDRESS_BITS: usize = 5;
+
+/// A mask to only allow the bits used for the block address within a chunk to be used.
+pub const BLOCK_COORDINATE_BITS: i64 = !(!0 << BLOCK_ADDRESS_BITS);
+const_assert_eq!(BLOCK_COORDINATE_BITS, 0x000000000000001Fi64);
 
 /// The diameter of a chunk in blocks.
 pub const CHUNK_DIAMETER: usize = 1 << BLOCK_ADDRESS_BITS;
@@ -32,102 +32,12 @@ create_strong_type!(ChunkKey, u64);
 /// The raw data for a chunk.
 pub struct ChunkData {
     storage: [u16; CHUNK_LENGTH],
-    x: i16,
-    y: i16,
-    z: i16,
-}
-
-// We have to manually implement the serialization interfaces because we can't
-// serialize our box safely.
-impl Serialize for ChunkData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("Chunk", 6)?;
-        s.serialize_field("x", &self.x)?;
-        s.serialize_field("y", &self.x)?;
-        s.serialize_field("z", &self.x)?;
-        s.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Box<ChunkData> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "lowercase")]
-        enum Field {
-            X,
-            Y,
-            Z,
-        }
-
-        struct ChunkVistor;
-
-        impl<'de> Visitor<'de> for ChunkVistor {
-            type Value = Box<ChunkData>;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct ChunkData")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<Box<ChunkData>, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                let x = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let y = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let z = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                Ok(ChunkData::create(x, y, z))
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<Box<ChunkData>, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut x = None;
-                let mut y = None;
-                let mut z = None;
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::X => {
-                            if x.is_some() {
-                                return Err(de::Error::duplicate_field("x"));
-                            }
-                            x = Some(map.next_value()?);
-                        }
-                        Field::Y => {
-                            if y.is_some() {
-                                return Err(de::Error::duplicate_field("y"));
-                            }
-                            y = Some(map.next_value()?);
-                        }
-                        Field::Z => {
-                            if z.is_some() {
-                                return Err(de::Error::duplicate_field("z"));
-                            }
-                            z = Some(map.next_value()?);
-                        }
-                    }
-                }
-                let x = x.ok_or_else(|| de::Error::missing_field("x"))?;
-                let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
-                let z = z.ok_or_else(|| de::Error::missing_field("z"))?;
-                Ok(ChunkData::create(x, y, z))
-            }
-        }
-
-        const FIELDS: &'static [&'static str] = &["x", "y", "z"];
-        deserializer.deserialize_struct("Duration", FIELDS, ChunkVistor)
-    }
+    location: ChunkCoordinate,
 }
 
 impl ChunkData {
     /// Creates a chunk at the specified index.
-    pub fn create(x: i16, y: i16, z: i16) -> Box<ChunkData> {
+    pub fn create(location: ChunkCoordinate) -> Box<ChunkData> {
         // Due to a bug in Rust itself, we have to manually build this box.
         use std::{
             alloc::{alloc, Layout},
@@ -143,17 +53,14 @@ impl ChunkData {
             ptr::write_bytes(pointer, 0, 1);
             Box::from_raw(pointer)
         };
-
-        chunk.x = x;
-        chunk.y = y;
-        chunk.z = z;
+        chunk.location = location;
 
         chunk
     }
 
     /// Gets the index of this chunk.
-    pub fn get_index(&self) -> (i16, i16, i16) {
-        (self.x, self.y, self.z)
+    pub fn get_index(&self) -> ChunkCoordinate {
+        self.location
     }
 
     /// Provides the block data for this chunk.
@@ -176,7 +83,7 @@ pub struct ChunkDiskStorage {
 }
 
 // Want to keep this thread safe.
-static_assertions::assert_impl_all!(ChunkDiskStorage: Send, Sync);
+assert_impl_all!(ChunkDiskStorage: Send, Sync);
 
 impl ChunkDiskStorage {
     /// Provide a file handles for both the index file and the chunk file and
@@ -193,8 +100,8 @@ impl ChunkDiskStorage {
     /// Will get a single chunk's data at the specified chunk coordinates.
     /// Search time is filesystem dependent. If the chunk does not exist in
     /// the file, None will be returned.
-    pub fn get_chunk(&self, x: i16, y: i16, z: i16) -> Result<Option<Box<ChunkData>>> {
-        let mut chunk = ChunkData::create(x, y, z);
+    pub fn get_chunk(&self, location: ChunkCoordinate) -> Result<Option<Box<ChunkData>>> {
+        let mut chunk = ChunkData::create(location);
 
         if self.load_chunk(&mut chunk)? {
             Ok(Some(chunk))
@@ -207,7 +114,7 @@ impl ChunkDiskStorage {
     /// dependent. If the chunk does not exist, false will be returned.
     /// Otherwise, true is returned.
     pub fn load_chunk(&self, chunk: &mut ChunkData) -> Result<bool> {
-        let path = self.create_chunk_path(chunk.x, chunk.y, chunk.z);
+        let path = self.create_chunk_path(chunk.location.x, chunk.location.y, chunk.location.z);
 
         if path.exists() {
             let file = File::open(path)?;
@@ -240,7 +147,7 @@ impl ChunkDiskStorage {
 
     /// Save the bytes of a chunk to a file.
     pub fn save_chunk(&self, chunk: &ChunkData) -> Result<()> {
-        let path = self.create_chunk_path(chunk.x, chunk.y, chunk.z);
+        let path = self.create_chunk_path(chunk.location.x, chunk.location.y, chunk.location.z);
         if path.exists() {
             // We are going to make a backup of the old version of this file.
             let mut backup_path = path.clone();
@@ -321,21 +228,23 @@ mod test_fileformate {
 
     use super::*;
 
+    // TODO test storage and recovery of chunk.
+
     #[test]
     fn read_chunk_doesnt_exist() {
         let dir = tempfile::tempdir().unwrap();
         let storage = ChunkDiskStorage::initialize(dir.path(), 9);
-        assert!(storage.get_chunk(0, 0, 0).unwrap().is_none());
+        assert!(storage.get_chunk(ChunkCoordinate::new(0, 0, 0)).unwrap().is_none());
     }
 
     #[test]
     fn create_chunk() {
         let dir = tempfile::tempdir().unwrap();
         let storage = ChunkDiskStorage::initialize(dir.path(), 9);
-        let chunk = ChunkData::create(0, 0, 0);
+        let chunk = ChunkData::create(ChunkCoordinate::new(0, 0, 0));
         storage.save_chunk(&chunk).unwrap();
 
-        assert!(storage.get_chunk(0, 0, 0).unwrap().is_some());
+        assert!(storage.get_chunk(ChunkCoordinate::new(0, 0, 0)).unwrap().is_some());
     }
 
     #[test]

@@ -1,6 +1,6 @@
-use common::world::storage::*;
+use common::world::{storage::*, *};
 use criterion::{criterion_group, criterion_main, Criterion};
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayon::ThreadPoolBuilder;
 use tempfile::tempdir;
 
 const COMPRESSION_LEVEL: u8 = 6;
@@ -9,7 +9,7 @@ fn save_single_chunk(c: &mut Criterion) {
     let dir = tempdir().unwrap();
     let storage = ChunkDiskStorage::initialize(dir.path(), COMPRESSION_LEVEL);
 
-    let chunk = ChunkData::create(0, 0, 0);
+    let chunk = ChunkData::create(ChunkCoordinate::new(0, 0, 0));
 
     let profiler = pprof::ProfilerGuard::new(100).unwrap();
 
@@ -29,14 +29,14 @@ fn load_single_chunk(c: &mut Criterion) {
     let dir = tempdir().unwrap();
     let storage = ChunkDiskStorage::initialize(dir.path(), COMPRESSION_LEVEL);
 
-    let chunk = ChunkData::create(0, 0, 0);
+    let chunk = ChunkData::create(ChunkCoordinate::new(0, 0, 0));
     storage.save_chunk(&chunk).unwrap();
 
     let profiler = pprof::ProfilerGuard::new(100).unwrap();
 
     c.bench_function("load_single_chunk", |b| {
         b.iter(|| {
-            assert!(storage.get_chunk(0, 0, 0).unwrap().is_some());
+            assert!(storage.get_chunk(ChunkCoordinate::new(0, 0, 0)).unwrap().is_some());
         })
     });
 
@@ -58,7 +58,7 @@ fn bulk_load(c: &mut Criterion) {
     for y in -radius..=radius {
         for x in -radius..=radius {
             for z in -radius..=radius {
-                chunks.push(ChunkData::create(x, y, z));
+                chunks.push(ChunkData::create(ChunkCoordinate::new(x, y, z)));
             }
         }
     }
@@ -85,7 +85,7 @@ fn bulk_load(c: &mut Criterion) {
                                 // Only hand a reference to the thread.
                                 let storage = &storage;
                                 scope.spawn(move |_| {
-                                    assert!(storage.get_chunk(x, y, z).unwrap().is_some());
+                                    assert!(storage.get_chunk(ChunkCoordinate::new(x, y, z)).unwrap().is_some());
                                 })
                             }
                         }
@@ -107,7 +107,7 @@ fn bulk_load(c: &mut Criterion) {
                 for y in -radius..=radius {
                     for x in -radius..=radius {
                         for z in -radius..=radius {
-                            assert!(storage.get_chunk(x, y, z).unwrap().is_some());
+                            assert!(storage.get_chunk(ChunkCoordinate::new(x, y, z)).unwrap().is_some());
                         }
                     }
                 }
@@ -129,7 +129,7 @@ fn bulk_save(c: &mut Criterion) {
     for y in -radius..=radius {
         for x in -radius..=radius {
             for z in -radius..=radius {
-                chunks.push(ChunkData::create(x, y, z));
+                chunks.push(ChunkData::create(ChunkCoordinate::new(x, y, z)));
             }
         }
     }

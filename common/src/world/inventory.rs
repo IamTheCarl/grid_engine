@@ -4,7 +4,6 @@
 //! Management of entity inventory and material/item transfers.
 
 use core::hash::Hash;
-use derive_error;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
