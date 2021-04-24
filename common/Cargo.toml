@@ -23,6 +23,7 @@ flate2 = "1.0"
 typetag = "0.1"
 slotmap = "1.0"
 legion = "0.4"
+itertools = "0.10"
 
 [dev-dependencies]
 tempfile = "3.1"

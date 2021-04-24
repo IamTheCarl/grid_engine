@@ -460,6 +460,7 @@ dependencies = [
  "criterion",
  "derive-error",
  "flate2",
+ "itertools 0.10.0",
  "lazy_static",
  "legion",
  "log",
