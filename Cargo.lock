@@ -471,7 +471,6 @@ dependencies = [
  "serde",
  "serde_cbor",
  "simba",
- "slotmap 1.0.2",
  "static_assertions",
  "sys-info",
  "tempfile",
@@ -1381,7 +1380,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "072136d2c3783f3a92f131acb227bc806d3886278e2a4dc1e9990ec89ef9e70b"
 dependencies = [
  "js-sys",
- "slotmap 0.4.0",
+ "slotmap",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -2856,15 +2855,6 @@ name = "slotmap"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c46a3482db8f247956e464d783693ece164ca056e6e67563ee5505bdb86452cd"
-
-[[package]]
-name = "slotmap"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab3003725ae562cf995f3dc82bb99e70926e09000396816765bb6d7adbe740b1"
-dependencies = [
- "version_check",
-]
 
 [[package]]
 name = "smallvec"

@@ -21,7 +21,6 @@ static_assertions = "1.1"
 antidote = "1.0"
 flate2 = "1.0"
 typetag = "0.1"
-slotmap = "1.0"
 legion = "0.4"
 itertools = "0.10"
 
