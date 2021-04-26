@@ -6,7 +6,7 @@
 use derive_error::Error;
 use legion::World;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, fmt, num::NonZeroU16, time::Duration};
 
 // pub mod inventory;
 mod coordinates;
@@ -20,11 +20,29 @@ pub use time::*;
 // Names of files and folders in a world save.
 // const TERRAIN_FOLDER: &str = "terrain";
 
+/// A registry of data about blocks.
+/// Adding blocks to this structure is a simple process, but removing blocks require you go through all of the world's
+/// chunks and update them to be compatible with the new registry. Currently, this is not supported.
+#[derive(Serialize, Deserialize)]
+pub struct BlockRegistry {
+    block_data: Vec<BlockData>,
+    block_ids: HashMap<String, BlockID>,
+}
+
+/// Errors revolving around registries.
+#[derive(Debug, Error)]
+pub enum RegistryError {
+    /// This error happens if you attempt to add an item to the registry with the same key as an item
+    /// already in the registry.
+    KeyAlreadyExists,
+}
+
 /// Meta data used to describe a block.
 /// Eventually more data should be associated, such as what happens when you break it, does it give off light? How heavy is it?
 #[derive(Serialize, Deserialize)]
 pub struct BlockData {
     name: String,
+    id: BlockID,
     display_text: String, // TODO grab this from a translation table?
 }
 
@@ -35,24 +53,63 @@ impl fmt::Display for BlockData {
     }
 }
 
-/// A registry of data about blocks.
-/// Adding blocks to this structure is a simple process, but removing blocks require you go through all of the world's
-/// chunks and update them to be compatible with the new registry. Currently, this is not supported.
-#[derive(Serialize, Deserialize)]
-pub struct BlockRegistry {
-    block_data: Vec<BlockData>,
-}
+type RegistryResult<O> = std::result::Result<O, RegistryError>;
 
 impl BlockRegistry {
     /// Add a block to the block registry.
-    pub fn add_block(&mut self, name: String, display_text: String) {
-        self.block_data.push(BlockData { name, display_text })
+    pub fn add_block(&mut self, name: String, display_text: String) -> RegistryResult<()> {
+        // We offset the block ID by 1 to make sure it is non-zero when the array index is zero.
+        if !self.block_ids.contains_key(&name) {
+            let id = BlockID::new(NonZeroU16::new((self.block_data.len() + 1) as u16).expect("Generated invalid block ID."));
+
+            self.block_ids.insert(name.clone(), id);
+            self.block_data.push(BlockData { name, id, display_text });
+
+            Ok(())
+        } else {
+            Err(RegistryError::KeyAlreadyExists)
+        }
     }
 
     /// Get a block's data from its ID.
-    /// Will panic if you provide an invalid ID!
-    pub fn get_block(&self, id: u16) -> &BlockData {
-        &self.block_data[id as usize]
+    #[inline]
+    pub fn get_block_data_from_id(&self, id: BlockID) -> Option<&BlockData> {
+        // We subtract one because that fits into our block data range.
+        self.block_data.get((id.id.get() - 1) as usize)
+    }
+
+    /// Get the ID of a block from its name.
+    #[inline]
+    pub fn get_block_id_from_name(&self, name: &str) -> Option<&BlockID> {
+        self.block_ids.get(name)
+    }
+
+    /// Get a blocks data from its name.
+    #[inline]
+    pub fn get_block_data_from_name(&self, name: &str) -> Option<&BlockData> {
+        let id = self.get_block_id_from_name(name)?;
+        self.get_block_data_from_id(*id)
+    }
+
+    /// Get the number of different types of blocks.
+    #[inline]
+    pub fn num_block_types(&self) -> u16 {
+        self.block_data.len() as u16
+    }
+}
+
+/// Represents the ID of a single block in a terrain chunk.
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct BlockID {
+    id: NonZeroU16,
+}
+
+impl BlockID {
+    /// Create a new block directly from a non-zero u16.
+    /// This is generally not a good idea to do unless you're doing something unusual like loading terrain
+    /// from a file. For the most part you should use block IDs you got from the block registry.
+    pub fn new(id: NonZeroU16) -> BlockID {
+        BlockID { id }
     }
 }
 
@@ -62,6 +119,11 @@ pub struct Chunk {
 }
 
 impl Chunk {
+    /// Create a new, blank chunk.
+    pub fn new(location: ChunkCoordinate) -> Chunk {
+        Chunk { storage: storage::ChunkData::create(location) }
+    }
+
     /// Get the index of the chunk.
     pub fn index(&self) -> ChunkCoordinate {
         self.storage.get_index()
@@ -78,28 +140,33 @@ pub enum WorldError {
 /// A world error type.
 pub type WorldResult<O> = std::result::Result<O, WorldError>;
 
-/// A world full of terrain and entities.
-pub struct GridWorld<ChunkProvider>
-where
-    ChunkProvider: Fn(ChunkCoordinate) -> Chunk,
-{
-    time: WorldTime,
-    terrain_chunks: HashMap<ChunkCoordinate, Chunk>,
-    entities: World,
-    chunk_provider: ChunkProvider, // TODO use a trait and allocate on the heap instead.
+/// An object that provides terrain chunks with their block content.
+pub trait ChunkProvider {
+    /// To put blocks into a chunk, you will need to get the block IDs ahead of time.
+    /// This function lets you do so.
+    fn collect_block_ids(&mut self, registry: &BlockRegistry);
+
+    /// When a chunk is created, it needs to be filled with blocks. An empty chunk will be provided
+    /// to this method, and this method is to fill it with blocks.
+    fn provide_chunk(&self, chunk: &mut Chunk);
 }
 
-impl<ChunkProvider> GridWorld<ChunkProvider>
-where
-    ChunkProvider: Fn(ChunkCoordinate) -> Chunk,
-{
+/// A world full of terrain and entities.
+pub struct GridWorld {
+    time: WorldTime,
+    terrain_chunks: HashMap<ChunkCoordinate, Chunk>,
+    ecs: World,
+    chunk_provider: Box<dyn ChunkProvider>,
+}
+
+impl GridWorld {
     /// Create a new world with local storage.
-    pub fn new(chunk_provider: ChunkProvider) -> GridWorld<ChunkProvider> {
+    pub fn new(chunk_provider: Box<dyn ChunkProvider>) -> GridWorld {
         let terrain_chunks = HashMap::new();
         let time = WorldTime::from_ms(0);
-        let entities = World::default();
+        let ecs = World::default();
 
-        GridWorld { time, terrain_chunks, entities, chunk_provider }
+        GridWorld { time, terrain_chunks, ecs, chunk_provider }
     }
 
     /// Update the entities of the world.
@@ -111,6 +178,12 @@ where
     #[inline]
     pub fn time(&self) -> WorldTime {
         self.time
+    }
+
+    /// Grab the ECS for manipulating entities.
+    #[inline]
+    pub fn ecs(&self) -> &World {
+        &self.ecs
     }
 
     /// Get a chunk from its index.
@@ -129,7 +202,12 @@ where
     #[inline]
     pub fn load_chunk(&mut self, index: ChunkCoordinate) -> &mut Chunk {
         let chunk_provider = &mut self.chunk_provider;
-        self.terrain_chunks.entry(index).or_insert_with(move || chunk_provider(index))
+        self.terrain_chunks.entry(index).or_insert_with(|| {
+            let mut chunk = Chunk::new(index);
+            chunk_provider.provide_chunk(&mut chunk);
+
+            chunk
+        })
     }
 
     /// Load many chunks in a range.
