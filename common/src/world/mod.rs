@@ -128,13 +128,75 @@ impl Chunk {
     pub fn index(&self) -> ChunkCoordinate {
         self.storage.get_index()
     }
+
+    /// Get a single block from the chunk.
+    /// Do NOT use this to iterate. Use the proper iterators to do so.
+    /// This will chop off out of range bits for coordinates extending beyond chunk bounds.
+    #[inline]
+    pub fn get_single_block_local(&self, location: LocalBlockCoordinate) -> Option<BlockID> {
+        let location = location.validate();
+        self.direct_access(
+            location.x as usize
+                + location.y as usize * storage::CHUNK_DIAMETER
+                + location.z as usize * storage::CHUNK_DIAMETER * storage::CHUNK_DIAMETER,
+        )
+        .expect("Local block index out of bounds.")
+    }
+
+    /// Get a single block from the chunk.
+    /// Do NOT use this to iterate. Use the proper iterators to do so.
+    /// This will chop off out of range bits for coordinates extending beyond chunk bounds.
+    #[inline]
+    pub fn get_single_block_local_mut(&mut self, location: LocalBlockCoordinate) -> &mut Option<BlockID> {
+        let location = location.validate();
+        self.direct_access_mut(
+            location.x as usize
+                + location.y as usize * storage::CHUNK_DIAMETER
+                + location.z as usize * storage::CHUNK_DIAMETER * storage::CHUNK_DIAMETER,
+        )
+        .expect("Local block index out of bounds.")
+    }
+
+    /// Used internally efficiently iterate the content of the chunk.
+    /// You're best off not using this directly.
+    #[inline]
+    pub fn direct_access(&self, index: usize) -> WorldResult<Option<BlockID>> {
+        let block_id = self.storage.get_data().get(index).ok_or(WorldError::OutOfRange)?;
+
+        Ok(if let Some(block_id) = NonZeroU16::new(*block_id) { Some(BlockID::new(block_id)) } else { None })
+    }
+
+    /// Used internally efficiently iterate the content of the chunk.
+    /// You're best off not using this directly.
+    #[inline]
+    pub fn direct_access_mut(&mut self, index: usize) -> WorldResult<&mut Option<BlockID>> {
+        let block_id = self.storage.get_data_mut().get_mut(index).ok_or(WorldError::OutOfRange)?;
+
+        // We have to transmute this to keep it a reference. It should be safe since an Option<BlockID>
+        // is just a normal u16 where 0 represents none.
+        Ok(unsafe { std::mem::transmute(block_id) })
+    }
+
+    // pub fn iter_ideal() -> LocalBlockIterator
+}
+
+#[cfg(test)]
+/// Transmutation of block IDs is kind of a hack I had to use to make the direct_access_mut function on chunks work correctly.
+/// Since it is *possible* for that behavior to break in the future, this test is here to point out the issue quickly.
+#[test]
+fn block_id_transmutation() {
+    let block_id = Some(BlockID { id: NonZeroU16::new(5).unwrap() });
+    assert_eq!(*unsafe { std::mem::transmute::<&Option<BlockID>, &u16>(&block_id) }, 5u16);
+
+    let block_id = None;
+    assert_eq!(*unsafe { std::mem::transmute::<&Option<BlockID>, &u16>(&block_id) }, 0u16);
 }
 
 /// Error type for the world.
 #[derive(Debug, Error)]
 pub enum WorldError {
-    /// There are no errors yet so this is just a place holder so this will compile.
-    PlaceHolder,
+    /// An error for when you try to access something out of range.
+    OutOfRange,
 }
 
 /// A world error type.

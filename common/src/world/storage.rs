@@ -14,14 +14,14 @@ use std::{
 };
 
 /// The number of bits in a block address that are specific to the block, and not part of the the chunk's address.
-pub const BLOCK_ADDRESS_BITS: usize = 5;
+pub const NUM_BLOCK_ADDRESS_BITS: usize = 5;
 
 /// A mask to only allow the bits used for the block address within a chunk to be used.
-pub const BLOCK_COORDINATE_BITS: i64 = !(!0 << BLOCK_ADDRESS_BITS);
-const_assert_eq!(BLOCK_COORDINATE_BITS, 0x000000000000001Fi64);
+pub const LOCAL_BLOCK_COORDINATE_BITS: i64 = !(!0 << NUM_BLOCK_ADDRESS_BITS);
+const_assert_eq!(LOCAL_BLOCK_COORDINATE_BITS, 0x000000000000001Fi64);
 
 /// The diameter of a chunk in blocks.
-pub const CHUNK_DIAMETER: usize = 1 << BLOCK_ADDRESS_BITS;
+pub const CHUNK_DIAMETER: usize = 1 << NUM_BLOCK_ADDRESS_BITS;
 
 // A chunk is 16x16x16 blocks in size, and a block consists of two bytes.
 // That makes the chunk 8Kb in length.
