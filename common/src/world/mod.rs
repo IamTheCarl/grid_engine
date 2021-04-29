@@ -177,19 +177,19 @@ impl Chunk {
         Ok(unsafe { std::mem::transmute(block_id) })
     }
 
-    // pub fn iter_ideal() -> LocalBlockIterator
-}
+    /// An ideal iterator for the chunk. This iterates in what is currently the most efficient way to iterate this chunk.
+    /// The order in which blocks are iterated is subject to change at random, and may even be different each time you
+    /// call this function..
+    pub fn iter_ideal(&self, range: LocalBlockRange) -> LocalBlockIterator {
+        range.iter_xyz(self)
+    }
 
-#[cfg(test)]
-/// Transmutation of block IDs is kind of a hack I had to use to make the direct_access_mut function on chunks work correctly.
-/// Since it is *possible* for that behavior to break in the future, this test is here to point out the issue quickly.
-#[test]
-fn block_id_transmutation() {
-    let block_id = Some(BlockID { id: NonZeroU16::new(5).unwrap() });
-    assert_eq!(*unsafe { std::mem::transmute::<&Option<BlockID>, &u16>(&block_id) }, 5u16);
-
-    let block_id = None;
-    assert_eq!(*unsafe { std::mem::transmute::<&Option<BlockID>, &u16>(&block_id) }, 0u16);
+    /// An ideal iterator for the chunk. This iterates in what is currently the most efficient way to iterate this chunk.
+    /// The order in which blocks are iterated is subject to change at random, and may even be different each time you
+    /// call this function..
+    pub fn iter_ideal_mut(&mut self, range: LocalBlockRange) -> LocalBlockIteratorMut {
+        range.iter_xyz_mut(self)
+    }
 }
 
 /// Error type for the world.
@@ -284,9 +284,20 @@ impl GridWorld {
 
 #[cfg(test)]
 mod test {
-    // use super::*;
+    use super::*;
     // use inventory::*;
     // use tempfile::tempdir;
+
+    /// Transmutation of block IDs is kind of a hack I had to use to make the direct_access_mut function on chunks work correctly.
+    /// Since it is *possible* for that behavior to break in the future, this test is here to point out the issue quickly.
+    #[test]
+    fn block_id_transmutation() {
+        let block_id = Some(BlockID { id: NonZeroU16::new(5).unwrap() });
+        assert_eq!(*unsafe { std::mem::transmute::<&Option<BlockID>, &u16>(&block_id) }, 5u16);
+
+        let block_id = None;
+        assert_eq!(*unsafe { std::mem::transmute::<&Option<BlockID>, &u16>(&block_id) }, 0u16);
+    }
 
     // /// Build an entity with no components.
     // #[test]

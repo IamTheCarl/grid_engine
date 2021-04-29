@@ -250,4 +250,64 @@ impl LocalBlockRange {
             chunk,
         }
     }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_yxz_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+        let (near, far) = self.get_near_and_far();
+        LocalBlockIteratorMut {
+            internal_iterator: (near.y..far.y).cartesian_product(near.x..far.x).cartesian_product(near.z..far.z),
+            conversion_function: &|y, x, z| LocalBlockCoordinate::new(x, y, z),
+            chunk,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_yzx_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+        let (near, far) = self.get_near_and_far();
+        LocalBlockIteratorMut {
+            internal_iterator: (near.y..far.y).cartesian_product(near.z..far.z).cartesian_product(near.x..far.x),
+            conversion_function: &|y, z, x| LocalBlockCoordinate::new(x, y, z),
+            chunk,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_xyz_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+        let (near, far) = self.get_near_and_far();
+        LocalBlockIteratorMut {
+            internal_iterator: (near.x..far.x).cartesian_product(near.y..far.y).cartesian_product(near.z..far.z),
+            conversion_function: &|x, y, z| LocalBlockCoordinate::new(x, y, z),
+            chunk,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_xzy_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+        let (near, far) = self.get_near_and_far();
+        LocalBlockIteratorMut {
+            internal_iterator: (near.x..far.x).cartesian_product(near.z..far.z).cartesian_product(near.y..far.y),
+            conversion_function: &|x, z, y| LocalBlockCoordinate::new(x, y, z),
+            chunk,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_zxy_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+        let (near, far) = self.get_near_and_far();
+        LocalBlockIteratorMut {
+            internal_iterator: (near.z..far.z).cartesian_product(near.x..far.x).cartesian_product(near.y..far.y),
+            conversion_function: &|z, x, y| LocalBlockCoordinate::new(x, y, z),
+            chunk,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_zyx_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+        let (near, far) = self.get_near_and_far();
+        LocalBlockIteratorMut {
+            internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),
+            conversion_function: &|z, y, x| LocalBlockCoordinate::new(x, y, z),
+            chunk,
+        }
+    }
 }
