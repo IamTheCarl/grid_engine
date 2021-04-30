@@ -31,11 +31,18 @@ impl ChunkCoordinateEXT for ChunkCoordinate {
 pub trait GlobalBlockCoordinateEXT {
     /// Get the position of the block within its chunk.
     fn to_local_block_coordinate(&self) -> LocalBlockCoordinate;
+
+    /// Get the index of the chunk this block is in.
+    fn chunk_index(&self) -> ChunkCoordinate;
 }
 
 impl GlobalBlockCoordinateEXT for GlobalBlockCoordinate {
     fn to_local_block_coordinate(&self) -> LocalBlockCoordinate {
         self.map(|v| (v & storage::LOCAL_BLOCK_COORDINATE_BITS) as u8)
+    }
+
+    fn chunk_index(&self) -> ChunkCoordinate {
+        self.map(|v| (v >> storage::NUM_BLOCK_ADDRESS_BITS) as i16)
     }
 }
 

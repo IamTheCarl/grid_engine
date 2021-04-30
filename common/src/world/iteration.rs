@@ -3,7 +3,10 @@
 
 //! Data structures for representing ranges and iteration of blocks and chunks.
 
-use super::{BlockID, Chunk, ChunkCoordinate, LocalBlockCoordinate, LocalBlockCoordinateExt};
+use super::{
+    BlockID, Chunk, ChunkCoordinate, GlobalBlockCoordinate, GlobalBlockCoordinateEXT, GridWorld, LocalBlockCoordinate,
+    LocalBlockCoordinateExt,
+};
 use itertools::{Itertools, Product};
 use std::ops::Range;
 
@@ -110,7 +113,7 @@ pub struct LocalBlockRange {
     size: LocalBlockCoordinate, // Constructors must make sure this is never negative.
 }
 
-/// An iterator for iterating over a range of chunks.
+/// An iterator for iterating over a range of blocks within a chunk.
 pub struct LocalBlockIterator<'chunk> {
     internal_iterator: Product<Product<Range<u8>, Range<u8>>, Range<u8>>,
     conversion_function: &'static dyn Fn(u8, u8, u8) -> LocalBlockCoordinate,
@@ -136,7 +139,7 @@ impl<'chunk> Iterator for LocalBlockIterator<'chunk> {
     }
 }
 
-/// An iterator for iterating over a range of chunks.
+/// An iterator for iterating over a range of blocks within a chunk that you can modify.
 pub struct LocalBlockIteratorMut<'chunk> {
     internal_iterator: Product<Product<Range<u8>, Range<u8>>, Range<u8>>,
     conversion_function: &'static dyn Fn(u8, u8, u8) -> LocalBlockCoordinate,
@@ -308,6 +311,204 @@ impl LocalBlockRange {
             internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),
             conversion_function: &|z, y, x| LocalBlockCoordinate::new(x, y, z),
             chunk,
+        }
+    }
+}
+
+/// A tool to select a range of blocks in global coordinate space.
+pub struct GlobalBlockRange {
+    root_block: GlobalBlockCoordinate,
+    size: GlobalBlockCoordinate, // Constructors must make sure this is never negative.
+}
+
+// TODO make versions of these iterators that force the terrain to load if needed.
+
+/// An iterator for iterating over a range of blocks.
+pub struct GlobalBlockIterator<'world> {
+    internal_iterator: Product<Product<Range<i64>, Range<i64>>, Range<i64>>,
+    conversion_function: &'static dyn Fn(i64, i64, i64) -> GlobalBlockCoordinate,
+    world: &'world GridWorld,
+}
+
+impl<'world> Iterator for GlobalBlockIterator<'world> {
+    type Item = Option<BlockID>;
+    fn next(&mut self) -> Option<Option<BlockID>> {
+        let next = self.internal_iterator.next();
+        if let Some(((a, b), c)) = next {
+            let conversion_function = self.conversion_function;
+            let address = conversion_function(a, b, c);
+
+            // Extremely inefficient fetching of the chunk every time we increment.
+            let chunk = self.world.get_chunk(&address.chunk_index())?;
+
+            // Also pretty inefficient.
+            Some(chunk.get_single_block_local(address.to_local_block_coordinate()))
+        } else {
+            None
+        }
+    }
+}
+
+/// An iterator for iterating over a range of blocks that you can modify.
+pub struct GlobalBlockIteratorMut<'world> {
+    internal_iterator: Product<Product<Range<i64>, Range<i64>>, Range<i64>>,
+    conversion_function: &'static dyn Fn(i64, i64, i64) -> GlobalBlockCoordinate,
+    world: &'world mut GridWorld,
+}
+
+impl<'chunk> Iterator for GlobalBlockIteratorMut<'chunk> {
+    type Item = &'chunk mut Option<BlockID>;
+    fn next(&mut self) -> Option<&'chunk mut Option<BlockID>> {
+        let next = self.internal_iterator.next();
+        if let Some(((a, b), c)) = next {
+            let conversion_function = self.conversion_function;
+            let address = conversion_function(a, b, c);
+
+            // Extremely inefficient fetching of the chunk every time we increment.
+            let chunk = self.world.get_chunk_mut(&address.chunk_index())?;
+            let block = chunk.get_single_block_local_mut(address.to_local_block_coordinate()) as *mut _;
+
+            Some(unsafe { &mut *block })
+        } else {
+            None
+        }
+    }
+}
+
+impl GlobalBlockRange {
+    /// Select a range of chunks using two corner points.
+    pub fn from_end_points(first: ChunkCoordinate, second: ChunkCoordinate) -> ChunkRange {
+        // Use the min values to find the root chunk.
+        let root_chunk = first.inf(&second);
+
+        // The size of the selection.
+        let size = (first - second).abs();
+
+        ChunkRange { root_chunk, size }
+    }
+
+    /// Get the two chunks most down-west-south and the chunk most up-east-north for this range.
+    pub fn get_near_and_far(&self) -> (GlobalBlockCoordinate, GlobalBlockCoordinate) {
+        (self.root_block, self.root_block + self.size)
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_yxz<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIterator {
+            internal_iterator: (near.y..far.y).cartesian_product(near.x..far.x).cartesian_product(near.z..far.z),
+            conversion_function: &|y, x, z| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_yzx<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIterator {
+            internal_iterator: (near.y..far.y).cartesian_product(near.z..far.z).cartesian_product(near.x..far.x),
+            conversion_function: &|y, z, x| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_xyz<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIterator {
+            internal_iterator: (near.x..far.x).cartesian_product(near.y..far.y).cartesian_product(near.z..far.z),
+            conversion_function: &|x, y, z| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_xzy<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIterator {
+            internal_iterator: (near.x..far.x).cartesian_product(near.z..far.z).cartesian_product(near.y..far.y),
+            conversion_function: &|x, z, y| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_zxy<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIterator {
+            internal_iterator: (near.z..far.z).cartesian_product(near.x..far.x).cartesian_product(near.y..far.y),
+            conversion_function: &|z, x, y| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_zyx<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIterator {
+            internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),
+            conversion_function: &|z, y, x| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_yxz_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIteratorMut {
+            internal_iterator: (near.y..far.y).cartesian_product(near.x..far.x).cartesian_product(near.z..far.z),
+            conversion_function: &|y, x, z| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_yzx_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIteratorMut {
+            internal_iterator: (near.y..far.y).cartesian_product(near.z..far.z).cartesian_product(near.x..far.x),
+            conversion_function: &|y, z, x| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_xyz_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIteratorMut {
+            internal_iterator: (near.x..far.x).cartesian_product(near.y..far.y).cartesian_product(near.z..far.z),
+            conversion_function: &|x, y, z| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_xzy_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIteratorMut {
+            internal_iterator: (near.x..far.x).cartesian_product(near.z..far.z).cartesian_product(near.y..far.y),
+            conversion_function: &|x, z, y| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_zxy_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIteratorMut {
+            internal_iterator: (near.z..far.z).cartesian_product(near.x..far.x).cartesian_product(near.y..far.y),
+            conversion_function: &|z, x, y| GlobalBlockCoordinate::new(x, y, z),
+            world,
+        }
+    }
+
+    /// Get an iterator that iterates over the chunks in a cartesian manner.
+    pub fn iter_zyx_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+        let (near, far) = self.get_near_and_far();
+        GlobalBlockIteratorMut {
+            internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),
+            conversion_function: &|z, y, x| GlobalBlockCoordinate::new(x, y, z),
+            world,
         }
     }
 }
