@@ -16,6 +16,7 @@ pub mod storage;
 mod time;
 pub use iteration::*;
 pub use time::*;
+pub mod chunk_providers;
 
 // Names of files and folders in a world save.
 // const TERRAIN_FOLDER: &str = "terrain";
@@ -56,6 +57,11 @@ impl fmt::Display for BlockData {
 type RegistryResult<O> = std::result::Result<O, RegistryError>;
 
 impl BlockRegistry {
+    /// Construct a new block registry.
+    pub fn new() -> BlockRegistry {
+        BlockRegistry { block_data: Vec::new(), block_ids: HashMap::new() }
+    }
+
     /// Add a block to the block registry.
     pub fn add_block(&mut self, name: String, display_text: String) -> RegistryResult<()> {
         // We offset the block ID by 1 to make sure it is non-zero when the array index is zero.
@@ -204,9 +210,11 @@ pub type WorldResult<O> = std::result::Result<O, WorldError>;
 
 /// An object that provides terrain chunks with their block content.
 pub trait ChunkProvider {
-    /// To put blocks into a chunk, you will need to get the block IDs ahead of time.
-    /// This function lets you do so.
-    fn collect_block_ids(&mut self, registry: &BlockRegistry);
+    /// Access the block registry.
+    fn block_registry(&self) -> &BlockRegistry;
+
+    /// Access the block registry mutably.
+    fn block_registry_mut(&mut self) -> &mut BlockRegistry;
 
     /// When a chunk is created, it needs to be filled with blocks. An empty chunk will be provided
     /// to this method, and this method is to fill it with blocks.
@@ -229,6 +237,12 @@ impl GridWorld {
         let ecs = World::default();
 
         GridWorld { time, terrain_chunks, ecs, chunk_provider }
+    }
+
+    /// Get the world block registry.
+    #[inline]
+    pub fn block_registry(&self) -> &BlockRegistry {
+        self.chunk_provider.block_registry()
     }
 
     /// Update the entities of the world.
