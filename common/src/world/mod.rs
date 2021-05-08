@@ -185,16 +185,32 @@ impl Chunk {
 
     /// An ideal iterator for the chunk. This iterates in what is currently the most efficient way to iterate this chunk.
     /// The order in which blocks are iterated is subject to change at random, and may even be different each time you
-    /// call this function..
+    /// call this function.
+    #[inline]
     pub fn iter_ideal(&self, range: LocalBlockRange) -> LocalBlockIterator {
         range.iter_xyz(self)
     }
 
     /// An ideal iterator for the chunk. This iterates in what is currently the most efficient way to iterate this chunk.
     /// The order in which blocks are iterated is subject to change at random, and may even be different each time you
-    /// call this function..
+    /// call this function.
+    #[inline]
     pub fn iter_ideal_mut(&mut self, range: LocalBlockRange) -> LocalBlockIteratorMut {
         range.iter_xyz_mut(self)
+    }
+
+    /// A range for all blocks in the chunk.
+    /// This is just nice for making code more readable.
+    #[inline]
+    pub fn range_all_blocks() -> LocalBlockRange {
+        LocalBlockRange::from_end_points(
+            LocalBlockCoordinate::new(0, 0, 0),
+            LocalBlockCoordinate::new(
+                storage::CHUNK_DIAMETER as u8,
+                storage::CHUNK_DIAMETER as u8,
+                storage::CHUNK_DIAMETER as u8,
+            ),
+        )
     }
 }
 
@@ -313,56 +329,15 @@ mod test {
         assert_eq!(*unsafe { std::mem::transmute::<&Option<BlockID>, &u16>(&block_id) }, 0u16);
     }
 
-    // /// Build an entity with no components.
-    // #[test]
-    // fn build_empty_entity() {
-    //     let folder = tempdir().unwrap();
+    /// Create an abstract RAM world, just to make sure that works.
+    #[test]
+    fn new_world_abstract_ram() {
+        let block_registry = BlockRegistry::new();
+        let mut chunk_provider = chunk_providers::RAMWorld::new(block_registry);
 
-    //     let mut world = GridWorld::new(folder.path());
-    //     let _id = world.create_entity(HashMap::new());
-    // }
+        let abstract_flat_world = chunk_providers::AbstractFlatWorld::new();
+        chunk_provider.add_generator(abstract_flat_world);
 
-    // /// Build an entity with a single component (we happen to use the inventory component)
-    // #[test]
-    // fn build_entity_with_component() {
-    //     let folder = tempdir().unwrap();
-
-    //     let mut world = GridWorld::new(folder.path());
-    //     let mut components: HashMap<String, Box<dyn Component>> = HashMap::new();
-
-    //     components.insert(String::from("inventory"), Box::new(Inventory::infinite()));
-
-    //     let _entity_id = world.create_entity(components);
-    // }
-
-    // /// Run a single event through a component.
-    // #[test]
-    // fn run_event() {
-    //     let folder = tempdir().unwrap();
-
-    //     let mut world = GridWorld::new(folder.path());
-    //     let mut components: HashMap<String, Box<dyn Component>> = HashMap::new();
-
-    //     components.insert(String::from("inventory"), Box::new(Inventory::infinite()));
-
-    //     let entity_id = world.create_entity(components);
-
-    //     let mut material_registry = MaterialRegistry::new();
-    //     material_registry.register_material(String::from("obamium"), 4.2);
-    //     let material_registry = material_registry; // Re-define without mutability.
-
-    //     let material_id = material_registry.get_material_id("obamium").unwrap();
-
-    //     world
-    //         .push_event(
-    //             entity_id,
-    //             None,
-    //             String::from("inventory"),
-    //             &MaterialEvent::Add { stack: MaterialStack::new(material_id, 15) },
-    //         )
-    //         .unwrap();
-
-    //     let event_count = world.update();
-    //     assert_eq!(event_count, 1, "Wrong number of events processed.");
-    // }
+        let _world = GridWorld::new(chunk_provider);
+    }
 }
