@@ -6,7 +6,13 @@
 use derive_error::Error;
 use legion::World;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt, num::NonZeroU16, time::Duration};
+use std::{
+    cmp::{Eq, Ord, PartialEq, PartialOrd},
+    collections::HashMap,
+    fmt,
+    num::NonZeroU16,
+    time::Duration,
+};
 
 // pub mod inventory;
 mod coordinates;
@@ -24,7 +30,7 @@ pub mod chunk_providers;
 /// A registry of data about blocks.
 /// Adding blocks to this structure is a simple process, but removing blocks require you go through all of the world's
 /// chunks and update them to be compatible with the new registry. Currently, this is not supported.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BlockRegistry {
     block_data: Vec<BlockData>,
     block_ids: HashMap<String, BlockID>,
@@ -40,7 +46,7 @@ pub enum RegistryError {
 
 /// Meta data used to describe a block.
 /// Eventually more data should be associated, such as what happens when you break it, does it give off light? How heavy is it?
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BlockData {
     name: String,
     id: BlockID,
@@ -105,7 +111,7 @@ impl BlockRegistry {
 }
 
 /// Represents the ID of a single block in a terrain chunk.
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
 pub struct BlockID {
     id: NonZeroU16,
 }
@@ -339,5 +345,34 @@ mod test {
         chunk_provider.add_generator(abstract_flat_world);
 
         let _world = GridWorld::new(chunk_provider);
+    }
+
+    /// Generate some chunks.
+    #[test]
+    fn generate_chunks() {
+        let block_registry = BlockRegistry::new();
+        let mut chunk_provider = chunk_providers::RAMWorld::new(block_registry);
+
+        let abstract_flat_world = chunk_providers::AbstractFlatWorld::new();
+        chunk_provider.add_generator(abstract_flat_world);
+
+        let mut world = GridWorld::new(chunk_provider);
+
+        let abstract_block_id = world.block_registry().get_block_id_from_name("abstract_block").cloned();
+        assert!(abstract_block_id.is_some());
+
+        // Being at level 0, it should be filled with abstract blocks.
+        let chunk = world.load_chunk(ChunkCoordinate::new(0, 0, 0));
+
+        for block in chunk.iter_ideal(Chunk::range_all_blocks()) {
+            assert_eq!(block, abstract_block_id);
+        }
+
+        // Being at level 1, it should be empty.
+        let chunk = world.load_chunk(ChunkCoordinate::new(0, 1, 0));
+
+        for block in chunk.iter_ideal(Chunk::range_all_blocks()) {
+            assert_eq!(block, None);
+        }
     }
 }
