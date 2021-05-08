@@ -5,6 +5,11 @@
 
 use derive_error::Error;
 use legion::World;
+use rapier3d::{
+    dynamics::{CCDSolver, IntegrationParameters, JointSet, RigidBodySet},
+    geometry::{BroadPhase, ColliderSet, NarrowPhase},
+    pipeline::PhysicsPipeline,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::{Eq, Ord, PartialEq, PartialOrd},
@@ -249,6 +254,15 @@ pub struct GridWorld {
     terrain_chunks: HashMap<ChunkCoordinate, Chunk>,
     ecs: World,
     chunk_provider: Box<dyn ChunkProvider>,
+    physics_pipeline: PhysicsPipeline,
+    gravity: PhysicsVector,
+    physics_integration_parameters: IntegrationParameters,
+    physics_broad_phase: BroadPhase,
+    physics_narrow_phase: NarrowPhase,
+    rigid_bodies: RigidBodySet,
+    colliders: ColliderSet,
+    physics_joints: JointSet,
+    ccd_solver: CCDSolver,
 }
 
 impl GridWorld {
@@ -258,7 +272,31 @@ impl GridWorld {
         let time = WorldTime::from_ms(0);
         let ecs = World::default();
 
-        GridWorld { time, terrain_chunks, ecs, chunk_provider }
+        let physics_pipeline = PhysicsPipeline::new();
+        let gravity = PhysicsVector::new(0.0, -9.81, 0.0);
+        let physics_integration_parameters = IntegrationParameters::default();
+        let physics_broad_phase = BroadPhase::new();
+        let physics_narrow_phase = NarrowPhase::new();
+        let rigid_bodies = RigidBodySet::new();
+        let colliders = ColliderSet::new();
+        let physics_joints = JointSet::new();
+        let ccd_solver = CCDSolver::new();
+
+        GridWorld {
+            time,
+            terrain_chunks,
+            ecs,
+            chunk_provider,
+            physics_pipeline,
+            gravity,
+            physics_integration_parameters,
+            physics_broad_phase,
+            physics_narrow_phase,
+            rigid_bodies,
+            colliders,
+            physics_joints,
+            ccd_solver,
+        }
     }
 
     /// Get the world block registry.
@@ -269,7 +307,22 @@ impl GridWorld {
 
     /// Update the entities of the world.
     pub fn update(&mut self, time_delta: Duration) {
+        // Update the time.
         self.time += time_delta;
+
+        // TODO make this an ECS system so we can have pre and post physics events.
+        self.physics_pipeline.step(
+            &self.gravity,
+            &self.physics_integration_parameters,
+            &mut self.physics_broad_phase,
+            &mut self.physics_narrow_phase,
+            &mut self.rigid_bodies,
+            &mut self.colliders,
+            &mut self.physics_joints,
+            &mut self.ccd_solver,
+            &(),
+            &(),
+        )
     }
 
     /// Get the world time.

@@ -15,6 +15,9 @@ pub type LocalBlockCoordinate = Vector3<u8>;
 /// Type for a block's coordinates in global space.
 pub type GlobalBlockCoordinate = Vector3<i64>;
 
+/// Type for physics computations.
+pub type PhysicsVector = Vector3<f32>;
+
 /// Adds the ability to convert the chunk coordinate to a block global space coordinate.
 pub trait ChunkCoordinateEXT {
     /// Get the coordinate of local block 0x0x0 in global space.
