@@ -3,7 +3,7 @@
 
 //! Mechanisms and components revolving around what the player sees as a world.
 
-use legion::{system, Schedule, World};
+use legion::{system, Resources, Schedule, World};
 use rapier3d::{
     dynamics::{CCDSolver, IntegrationParameters, JointSet, RigidBodySet},
     geometry::{BroadPhase, ColliderSet, NarrowPhase},
@@ -11,7 +11,6 @@ use rapier3d::{
 };
 use std::{collections::HashMap, time::Duration};
 
-// pub mod inventory;
 mod coordinates;
 mod iteration;
 pub use coordinates::*;
@@ -44,51 +43,45 @@ pub trait ChunkProvider {
     fn provide_chunk(&self, chunk: &mut Chunk);
 }
 
-/// A struct that contains everything we need for physics processing.
-/// This just makes life easier when working with the ECS later.
-struct WorldPhysics {
-    physics_pipeline: PhysicsPipeline,
-    gravity: PhysicsVector,
-    physics_integration_parameters: IntegrationParameters,
-    physics_broad_phase: BroadPhase,
-    physics_narrow_phase: NarrowPhase,
-    rigid_bodies: RigidBodySet,
-    colliders: ColliderSet,
-    physics_joints: JointSet,
-    ccd_solver: CCDSolver,
-}
-
 /// A world full of terrain and entities.
 pub struct GridWorld {
     time: WorldTime,
     terrain_chunks: HashMap<ChunkCoordinate, Chunk>,
     ecs_world: World,
     ecs_schedule: Schedule,
+    ecs_resources: Resources,
     chunk_provider: Box<dyn ChunkProvider>,
-    physics: WorldPhysics,
+}
+
+/// Global constants in the physics engine that we can't just loosely toss into the ECS resources.
+pub struct PhysicsGlobalConstants {
+    gravity: PhysicsVector,
+    integration_parameters: IntegrationParameters,
 }
 
 impl GridWorld {
-    /// Create a new world with local storage.
+    /// Create a new world.
     pub fn new(chunk_provider: Box<dyn ChunkProvider>) -> GridWorld {
         let terrain_chunks = HashMap::new();
         let time = WorldTime::from_ms(0);
+
         let ecs_world = World::default();
         let ecs_schedule = Schedule::builder().add_system(ecs_physics_system()).build();
+        let mut ecs_resources = Resources::default();
 
-        let physics = WorldPhysics {
-            physics_pipeline: PhysicsPipeline::new(),
+        ecs_resources.insert(PhysicsPipeline::new());
+        ecs_resources.insert(PhysicsGlobalConstants {
             gravity: PhysicsVector::new(0.0, -9.81, 0.0),
-            physics_integration_parameters: IntegrationParameters::default(),
-            physics_broad_phase: BroadPhase::new(),
-            physics_narrow_phase: NarrowPhase::new(),
-            rigid_bodies: RigidBodySet::new(),
-            colliders: ColliderSet::new(),
-            physics_joints: JointSet::new(),
-            ccd_solver: CCDSolver::new(),
-        };
+            integration_parameters: IntegrationParameters::default(),
+        });
+        ecs_resources.insert(BroadPhase::new());
+        ecs_resources.insert(NarrowPhase::new());
+        ecs_resources.insert(RigidBodySet::new());
+        ecs_resources.insert(ColliderSet::new());
+        ecs_resources.insert(JointSet::new());
+        ecs_resources.insert(CCDSolver::new());
 
-        GridWorld { time, terrain_chunks, ecs_world, ecs_schedule, chunk_provider, physics }
+        GridWorld { time, terrain_chunks, ecs_world, ecs_schedule, ecs_resources, chunk_provider }
     }
 
     /// Get the world block registry.
@@ -101,6 +94,8 @@ impl GridWorld {
     pub fn update(&mut self, time_delta: Duration) {
         // Update the time.
         self.time += time_delta;
+
+        self.ecs_schedule.execute(&mut self.ecs_world, &mut self.ecs_resources);
     }
 
     /// Get the world time.
@@ -121,6 +116,12 @@ impl GridWorld {
         &self.ecs_schedule
     }
 
+    /// Grab the ECS resource set which contains things like the physics engine.
+    #[inline]
+    pub fn ecs_resources(&self) -> &Resources {
+        &self.ecs_resources
+    }
+
     /// Grab the ECS for manipulating entities.
     #[inline]
     pub fn ecs_world_mut(&mut self) -> &mut World {
@@ -131,6 +132,12 @@ impl GridWorld {
     #[inline]
     pub fn ecs_schedule_mut(&mut self) -> &mut Schedule {
         &mut self.ecs_schedule
+    }
+
+    /// Grab the ECS resource set which contains things like the physics engine.
+    #[inline]
+    pub fn ecs_resources_mut(&mut self) -> &mut Resources {
+        &mut self.ecs_resources
     }
 
     /// Get a chunk from its index.
@@ -171,16 +178,21 @@ impl GridWorld {
 
 /// The physics system. It will update the world's physics. That's it.
 #[system]
-fn ecs_physics(#[resource] physics: &mut WorldPhysics) {
-    physics.physics_pipeline.step(
-        &physics.gravity,
-        &physics.physics_integration_parameters,
-        &mut physics.physics_broad_phase,
-        &mut physics.physics_narrow_phase,
-        &mut physics.rigid_bodies,
-        &mut physics.colliders,
-        &mut physics.physics_joints,
-        &mut physics.ccd_solver,
+fn ecs_physics(
+    #[resource] physics_pipeline: &mut PhysicsPipeline, #[resource] constants: &PhysicsGlobalConstants,
+    #[resource] broad_phase: &mut BroadPhase, #[resource] narrow_phase: &mut NarrowPhase,
+    #[resource] rigid_bodies: &mut RigidBodySet, #[resource] colliders: &mut ColliderSet, #[resource] joints: &mut JointSet,
+    #[resource] ccd_solver: &mut CCDSolver,
+) {
+    physics_pipeline.step(
+        &constants.gravity,
+        &constants.integration_parameters,
+        broad_phase,
+        narrow_phase,
+        rigid_bodies,
+        colliders,
+        joints,
+        ccd_solver,
         &(),
         &(),
     )
