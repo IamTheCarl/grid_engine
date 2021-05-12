@@ -1,4 +1,4 @@
-// Copyright James Carl (C) 2020
+// Copyright James Carl (C) 2020-2021
 // AGPL-3.0-or-later
 
 //! Utilities used for managing game time.

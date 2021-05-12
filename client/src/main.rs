@@ -1,4 +1,4 @@
-// Copyright James Carl (C) 2020
+// Copyright James Carl (C) 2020-2021
 // AGPL-3.0-or-later
 
 //! Client for Grid Locked engine
@@ -18,8 +18,6 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 // mod client;
 // mod users;
-mod ecs;
-mod gui;
 
 // use client::Client;
 

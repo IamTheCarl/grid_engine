@@ -1,4 +1,4 @@
-// Copyright James Carl (C) 2020
+// Copyright James Carl (C) 2020-2021
 // AGPL-3.0-or-later
 
 //! Common library used for both client and server.
@@ -11,7 +11,6 @@ extern crate static_assertions;
 // pub mod networking;
 #[macro_use]
 mod boiler_plate;
-// pub mod scheduler;
 pub mod world;
 
 use anyhow::Result;
