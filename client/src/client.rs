@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
-use chrono::Timelike;
+// use chrono::Timelike;
 // use egui::app::App;
 // use egui::paint::FontDefinitions;
 // use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
@@ -15,7 +15,10 @@ use legion::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::borrow::Cow;
 
-use anyhow::{anyhow, Context, Result};
+/// Type for graphics computations.
+pub type GraphicsVector3 = nalgebra::Vector3<f32>;
+
+use anyhow::{anyhow, Result};
 
 use vk_shader_macros::include_glsl;
 
@@ -23,9 +26,9 @@ static VERTEX_SHADER: &[u32] = include_glsl!("src/shaders/test.vert");
 static FRAGMENT_SHADER: &[u32] = include_glsl!("src/shaders/test.frag");
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+    Vertex { position: GraphicsVector3::new(0.0, 0.5, 0.0), color: GraphicsVector3::new(1.0, 0.0, 0.0) },
+    Vertex { position: GraphicsVector3::new(-0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 1.0, 0.0) },
+    Vertex { position: GraphicsVector3::new(0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 0.0, 1.0) },
 ];
 
 use argh::FromArgs;
@@ -33,8 +36,8 @@ use argh::FromArgs;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Zeroable, Pod)]
 struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
+    position: nalgebra::Vector3<f32>,
+    color: nalgebra::Vector3<f32>,
 }
 
 #[derive(FromArgs)]
@@ -105,7 +108,7 @@ impl Client {
             block_on(Self::request_adapter(&instance, &surface)).ok_or(anyhow!("Failed to find graphics adapter."))?;
 
         // Get the actual GPU now.
-        let (device, mut queue) = block_on(Self::request_device(&adapter))?;
+        let (device, queue) = block_on(Self::request_device(&adapter))?;
 
         // Swap chain basically manages our double buffer.
         let sc_desc = wgpu::SwapChainDescriptor {
@@ -223,8 +226,8 @@ impl Client {
                 _ => None,
             },
             Event::RedrawRequested(_) => {
-                let time = chrono::Local::now().time();
-                let time_delta = time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64);
+                // let time = chrono::Local::now().time();
+                // let time_delta = time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64);
                 // self.platform.update_time(time_delta);
 
                 self.on_frame();

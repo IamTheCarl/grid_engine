@@ -11,7 +11,7 @@ derive-error = "0.0"
 serde_cbor = "0.11"
 lazy_static = "1.4"
 log = "0.4"
-nalgebra = { version = "0.26", features = ["serde-serialize"] }
+nalgebra = { version = "0.26", features = ["serde-serialize", "bytemuck"] }
 os_info = "3.0"
 serde = "1.0"
 sys-info = "0.9.0"
