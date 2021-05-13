@@ -6,11 +6,6 @@ use wgpu::util::DeviceExt;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
-// use chrono::Timelike;
-// use egui::app::App;
-// use egui::paint::FontDefinitions;
-// use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
-// use egui_winit_platform::{Platform, PlatformDescriptor};
 use legion::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::borrow::Cow;
@@ -50,9 +45,6 @@ struct Arguments {
     num_threads: usize,
 }
 
-// use crate::ecs::*;
-// use crate::gui;
-
 pub struct Client {
     // General graphics stuff.
     window: Window,
@@ -64,10 +56,6 @@ pub struct Client {
     size: dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline, // TODO should that go into a vector of some sort?
     vertex_buffer: wgpu::Buffer,           // TODO this should definitely not be here, but it's here for the experiments.
-
-    // // Egui stuff.
-    // platform: Platform,
-    // egui_rpass: RenderPass,
 
     // World simulation stuff.
     thread_pool: ThreadPool,
@@ -174,19 +162,6 @@ impl Client {
 
         let worlds = Vec::new();
 
-        // We use the egui_winit_platform crate as the platform.
-        // let platform = Platform::new(PlatformDescriptor {
-        //     physical_width: size.width as u32,
-        //     physical_height: size.height as u32,
-        //     scale_factor: window.scale_factor(),
-        //     font_definitions: FontDefinitions::with_pixels_per_point(window.scale_factor() as f32),
-        //     style: Default::default(),
-        // });
-
-        // let egui_rpass = RenderPass::new(&device, TextureFormat::Bgra8UnormSrgb);
-        // let demo_app = egui::demos::DemoApp::default();
-        // let demo_env = egui::demos::DemoEnvironment::default();
-
         Ok(Client {
             window,
             surface,
@@ -197,19 +172,12 @@ impl Client {
             size,
             render_pipeline,
             vertex_buffer,
-            // platform,
-            // egui_rpass,
-            // demo_app,
-            // demo_env,
             worlds,
             thread_pool,
         })
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
-        // self.platform.handle_event(event);
-        // TODO update time.
-
         let control_flow = match event {
             Event::WindowEvent { ref event, window_id } if *window_id == self.window.id() => match event {
                 WindowEvent::CloseRequested => Some(ControlFlow::Exit),
@@ -226,16 +194,11 @@ impl Client {
                 _ => None,
             },
             Event::RedrawRequested(_) => {
-                // let time = chrono::Local::now().time();
-                // let time_delta = time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64);
-                // self.platform.update_time(time_delta);
-
                 self.on_frame();
                 None
             }
             Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
+                // RedrawRequested will only trigger once, unless we manually request it.
                 self.window.request_redraw();
                 None
             }
@@ -265,37 +228,6 @@ impl Client {
                 let frame = frame.output;
                 let mut encoder =
                     self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
-
-                // Render UI
-
-                // TODO most of this could be done in another thread, or in parallel.
-                // let mut ui = self.platform.begin_frame();
-
-                // let mut integration_context = egui::app::IntegrationContext {
-                //     info: egui::app::IntegrationInfo {
-                //         web_info: None,
-                //         cpu_usage: None,
-                //         seconds_since_midnight: None,
-                //         native_pixels_per_point: None,
-                //     },
-                //     tex_allocator: Some(&mut self.egui_rpass),
-                //     output: Default::default(),
-                // };
-                // self.demo_app.ui(&self.platform.context(), &mut integration_context);
-
-                // let (_output, paint_commands) = self.platform.end_frame();
-                // let paint_jobs = self.platform.context().tesselate(paint_commands);
-
-                // let screen_descriptor = ScreenDescriptor {
-                //     physical_width: self.sc_desc.width,
-                //     physical_height: self.sc_desc.height,
-                //     scale_factor: self.window.scale_factor() as f32,
-                // };
-
-                // self.egui_rpass.update_texture(&self.device, &self.queue, &self.platform.context().texture());
-                // self.egui_rpass.update_buffers(&mut self.device, &mut self.queue, &paint_jobs, &screen_descriptor);
-
-                // self.egui_rpass.execute(&mut encoder, &frame.view, &paint_jobs, &screen_descriptor, Some(wgpu::Color::BLACK));
 
                 // Render World.
                 {
