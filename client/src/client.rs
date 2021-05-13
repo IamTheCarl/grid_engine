@@ -2,15 +2,15 @@
 // AGPL-3.0-or-later
 
 use futures::executor::block_on;
-use wgpu::{util::DeviceExt, *};
+use wgpu::util::DeviceExt;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
 use chrono::Timelike;
 // use egui::app::App;
 // use egui::paint::FontDefinitions;
-use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
-use egui_winit_platform::{Platform, PlatformDescriptor};
+// use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
+// use egui_winit_platform::{Platform, PlatformDescriptor};
 use legion::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::borrow::Cow;
@@ -21,6 +21,12 @@ use vk_shader_macros::include_glsl;
 
 static VERTEX_SHADER: &[u32] = include_glsl!("src/shaders/test.vert");
 static FRAGMENT_SHADER: &[u32] = include_glsl!("src/shaders/test.frag");
+
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
+    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+];
 
 use argh::FromArgs;
 
@@ -47,18 +53,18 @@ struct Arguments {
 pub struct Client {
     // General graphics stuff.
     window: Window,
-    surface: Surface,
-    device: Device,
-    queue: Queue,
-    sc_desc: SwapChainDescriptor,
-    swap_chain: SwapChain,
+    surface: wgpu::Surface,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    sc_desc: wgpu::SwapChainDescriptor,
+    swap_chain: wgpu::SwapChain,
     size: dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline, // TODO should that go into a vector of some sort?
     vertex_buffer: wgpu::Buffer,           // TODO this should definitely not be here, but it's here for the experiments.
 
-    // Egui stuff.
-    platform: Platform,
-    egui_rpass: RenderPass,
+    // // Egui stuff.
+    // platform: Platform,
+    // egui_rpass: RenderPass,
 
     // World simulation stuff.
     thread_pool: ThreadPool,
@@ -66,19 +72,19 @@ pub struct Client {
 }
 
 impl Client {
-    async fn request_device(adapter: &Adapter) -> Result<(Device, Queue), RequestDeviceError> {
+    async fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue), wgpu::RequestDeviceError> {
         adapter
             .request_device(
-                &DeviceDescriptor { features: Features::empty(), limits: Limits::default(), label: None },
+                &wgpu::DeviceDescriptor { features: wgpu::Features::empty(), limits: wgpu::Limits::default(), label: None },
                 None, // Trace path
             )
             .await
     }
 
-    async fn request_adapter(instance: &Instance, surface: &Surface) -> Option<Adapter> {
+    async fn request_adapter(instance: &wgpu::Instance, surface: &wgpu::Surface) -> Option<wgpu::Adapter> {
         instance
-            .request_adapter(&RequestAdapterOptions {
-                power_preference: PowerPreference::HighPerformance, // TODO make this an option.
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance, // TODO make this an option.
                 compatible_surface: Some(surface),
             })
             .await
@@ -89,7 +95,7 @@ impl Client {
 
         // The instance is a handle to the graphics driver.
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = Instance::new(BackendBit::PRIMARY);
+        let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
 
         // Is unsafe because it depends on the window returning a valid descriptor.
         let surface = unsafe { instance.create_surface(&window) };
@@ -102,14 +108,16 @@ impl Client {
         let (device, mut queue) = block_on(Self::request_device(&adapter))?;
 
         // Swap chain basically manages our double buffer.
-        let sc_desc = SwapChainDescriptor {
-            usage: TextureUsage::OUTPUT_ATTACHMENT,
-            format: TextureFormat::Bgra8UnormSrgb,
+        let sc_desc = wgpu::SwapChainDescriptor {
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
-            present_mode: PresentMode::Mailbox, // TODO let the user pick
+            present_mode: wgpu::PresentMode::Mailbox, // TODO let the user pick
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
+        let swap_chain_format =
+            adapter.get_swap_chain_preferred_format(&surface).ok_or(anyhow!("Could not get swap chain's preferred format."))?;
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
@@ -117,37 +125,38 @@ impl Client {
             push_constant_ranges: &[],
         });
 
-        let vs_module = device.create_shader_module(ShaderModuleSource::SpirV(Cow::Borrowed(VERTEX_SHADER)));
-        let fs_module = device.create_shader_module(ShaderModuleSource::SpirV(Cow::Borrowed(FRAGMENT_SHADER)));
+        let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::SpirV(Cow::Borrowed(VERTEX_SHADER)),
+            flags: wgpu::ShaderFlags::all(),
+        });
+
+        let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::SpirV(Cow::Borrowed(FRAGMENT_SHADER)),
+            flags: wgpu::ShaderFlags::all(),
+        });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor { module: &vs_module, entry_point: "main" },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor { module: &fs_module, entry_point: "main" }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::Back,
-                depth_bias: 0,
-                depth_bias_slope_scale: 0.0,
-                depth_bias_clamp: 0.0,
-                clamp_depth: false,
-            }),
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: sc_desc.format,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            depth_stencil_state: None,
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[Vertex::desc()],
+            vertex: wgpu::VertexState {
+                module: &vs_module,
+                entry_point: "main",
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<Vertex>() as u64,
+                    step_mode: wgpu::InputStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array!(0 => Float32x3, 1 => Float32x3),
+                }],
             },
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            fragment: Some(wgpu::FragmentState {
+                module: &fs_module,
+                entry_point: "main",
+                targets: &[swap_chain_format.into()],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
         });
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -163,17 +172,17 @@ impl Client {
         let worlds = Vec::new();
 
         // We use the egui_winit_platform crate as the platform.
-        let platform = Platform::new(PlatformDescriptor {
-            physical_width: size.width as u32,
-            physical_height: size.height as u32,
-            scale_factor: window.scale_factor(),
-            font_definitions: FontDefinitions::with_pixels_per_point(window.scale_factor() as f32),
-            style: Default::default(),
-        });
+        // let platform = Platform::new(PlatformDescriptor {
+        //     physical_width: size.width as u32,
+        //     physical_height: size.height as u32,
+        //     scale_factor: window.scale_factor(),
+        //     font_definitions: FontDefinitions::with_pixels_per_point(window.scale_factor() as f32),
+        //     style: Default::default(),
+        // });
 
-        let egui_rpass = RenderPass::new(&device, TextureFormat::Bgra8UnormSrgb);
-        let demo_app = egui::demos::DemoApp::default();
-        let demo_env = egui::demos::DemoEnvironment::default();
+        // let egui_rpass = RenderPass::new(&device, TextureFormat::Bgra8UnormSrgb);
+        // let demo_app = egui::demos::DemoApp::default();
+        // let demo_env = egui::demos::DemoEnvironment::default();
 
         Ok(Client {
             window,
@@ -185,17 +194,17 @@ impl Client {
             size,
             render_pipeline,
             vertex_buffer,
-            platform,
-            egui_rpass,
-            demo_app,
-            demo_env,
+            // platform,
+            // egui_rpass,
+            // demo_app,
+            // demo_env,
             worlds,
             thread_pool,
         })
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
-        self.platform.handle_event(event);
+        // self.platform.handle_event(event);
         // TODO update time.
 
         let control_flow = match event {
@@ -216,7 +225,7 @@ impl Client {
             Event::RedrawRequested(_) => {
                 let time = chrono::Local::now().time();
                 let time_delta = time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64);
-                self.platform.update_time(time_delta);
+                // self.platform.update_time(time_delta);
 
                 self.on_frame();
                 None
@@ -257,39 +266,40 @@ impl Client {
                 // Render UI
 
                 // TODO most of this could be done in another thread, or in parallel.
-                let mut ui = self.platform.begin_frame();
+                // let mut ui = self.platform.begin_frame();
 
-                let mut integration_context = egui::app::IntegrationContext {
-                    info: egui::app::IntegrationInfo {
-                        web_info: None,
-                        cpu_usage: None,
-                        seconds_since_midnight: None,
-                        native_pixels_per_point: None,
-                    },
-                    tex_allocator: Some(&mut self.egui_rpass),
-                    output: Default::default(),
-                };
-                self.demo_app.ui(&self.platform.context(), &mut integration_context);
+                // let mut integration_context = egui::app::IntegrationContext {
+                //     info: egui::app::IntegrationInfo {
+                //         web_info: None,
+                //         cpu_usage: None,
+                //         seconds_since_midnight: None,
+                //         native_pixels_per_point: None,
+                //     },
+                //     tex_allocator: Some(&mut self.egui_rpass),
+                //     output: Default::default(),
+                // };
+                // self.demo_app.ui(&self.platform.context(), &mut integration_context);
 
-                let (_output, paint_commands) = self.platform.end_frame();
-                let paint_jobs = self.platform.context().tesselate(paint_commands);
+                // let (_output, paint_commands) = self.platform.end_frame();
+                // let paint_jobs = self.platform.context().tesselate(paint_commands);
 
-                let screen_descriptor = ScreenDescriptor {
-                    physical_width: self.sc_desc.width,
-                    physical_height: self.sc_desc.height,
-                    scale_factor: self.window.scale_factor() as f32,
-                };
+                // let screen_descriptor = ScreenDescriptor {
+                //     physical_width: self.sc_desc.width,
+                //     physical_height: self.sc_desc.height,
+                //     scale_factor: self.window.scale_factor() as f32,
+                // };
 
-                self.egui_rpass.update_texture(&self.device, &self.queue, &self.platform.context().texture());
-                self.egui_rpass.update_buffers(&mut self.device, &mut self.queue, &paint_jobs, &screen_descriptor);
+                // self.egui_rpass.update_texture(&self.device, &self.queue, &self.platform.context().texture());
+                // self.egui_rpass.update_buffers(&mut self.device, &mut self.queue, &paint_jobs, &screen_descriptor);
 
-                self.egui_rpass.execute(&mut encoder, &frame.view, &paint_jobs, &screen_descriptor, Some(wgpu::Color::BLACK));
+                // self.egui_rpass.execute(&mut encoder, &frame.view, &paint_jobs, &screen_descriptor, Some(wgpu::Color::BLACK));
 
                 // Render World.
                 {
                     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                            attachment: &frame.view,
+                        label: None,
+                        color_attachments: &[wgpu::RenderPassColorAttachment {
+                            view: &frame.view,
                             resolve_target: None,
                             ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: true },
                         }],

@@ -16,10 +16,10 @@ use native_dialog::{MessageDialog, MessageType};
 use anyhow::{Context, Result};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
-// mod client;
-// mod users;
+mod client;
+use client::Client;
 
-// use client::Client;
+// mod users;
 
 fn main() {
     let result = trampoline();
@@ -53,12 +53,12 @@ fn trampoline() -> Result<()> {
 
     // These are the only two things that can fail.
     let window = WindowBuilder::new().build(&event_loop).context("Error creating window.")?;
-    // let mut client = Client::create_with_window(window).context("Error setting up graphics system.")?;
+    let mut client = Client::create_with_window(window).context("Error setting up graphics system.")?;
 
     event_loop.run(move |event, _, control_flow| {
-        // let new_flow = client.process_event(&event);
-        // if let Some(new_flow) = new_flow {
-        //     *control_flow = new_flow;
-        // }
+        let new_flow = client.process_event(&event);
+        if let Some(new_flow) = new_flow {
+            *control_flow = new_flow;
+        }
     });
 }
