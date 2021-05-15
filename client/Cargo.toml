@@ -27,3 +27,6 @@ winit = "0.24"
 bytemuck = "1.5"
 nalgebra = { version = "0.26", features = ["serde-serialize", "bytemuck"] }
 bytemuck_derive = "1.0.0"
+
+[build-dependencies]
+spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", rev = "943f09fef7b7ac305432d0bc899b54716c1e765b" }

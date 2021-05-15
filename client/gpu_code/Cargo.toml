@@ -1,0 +1,11 @@
+[package]
+name = "gpu_code"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies]
+spirv-std = { git = "https://github.com/EmbarkStudios/rust-gpu.git", rev = "943f09fef7b7ac305432d0bc899b54716c1e765b" }
+glam = { version = "0.15.1", default-features = false, features = ["libm", "scalar-math", "spirv-std"] }
