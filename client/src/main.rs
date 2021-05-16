@@ -5,12 +5,6 @@
 
 #![warn(missing_docs)]
 
-use jemallocator::Jemalloc;
-
-// Use a global allocator that's better for threaded work.
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
-
 use native_dialog::{MessageDialog, MessageType};
 
 use anyhow::{Context, Result};

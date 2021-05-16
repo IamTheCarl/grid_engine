@@ -12,7 +12,6 @@ base64 = "0.13"
 common = { path = "../common" }
 env_logger = "0.8"
 futures = "0.3"
-jemallocator = "0.3.2"
 legion = "0.4"
 log = "0.4"
 native-dialog = "0.5"

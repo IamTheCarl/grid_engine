@@ -1,11 +1,6 @@
 // Copyright James Carl (C) 2020-2021
 // AGPL-3.0-or-later
 
-use jemallocator::Jemalloc;
-
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
-
 use anyhow::Result;
 
 fn main() {
