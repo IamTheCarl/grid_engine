@@ -392,18 +392,8 @@ dependencies = [
  "rayon",
  "rsa",
  "spirv-builder",
- "vk-shader-macros",
  "wgpu",
  "winit",
-]
-
-[[package]]
-name = "cmake"
-version = "0.1.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb6210b637171dfba4cda12e579ac6dc73f5165ad56133e5d72ef3131f320855"
-dependencies = [
- "cc",
 ]
 
 [[package]]
@@ -2714,26 +2704,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
 
 [[package]]
-name = "shaderc"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ca37955a53b37fa20380c414aec5343ab76b6993ebfd86e74facd7209bac577"
-dependencies = [
- "libc",
- "shaderc-sys",
-]
-
-[[package]]
-name = "shaderc-sys"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da6962db4d543df2fb613d76e6f4c7bcf58ff3300709c92f2349239955ce0a9f"
-dependencies = [
- "cmake",
- "libc",
-]
-
-[[package]]
 name = "simba"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3292,29 +3262,6 @@ name = "version_check"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fecdca9a5291cc2b8dcf7dc02453fee791a280f3743cb0905f8822ae463b3fe"
-
-[[package]]
-name = "vk-shader-macros"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abaf1283f4b9a883cd0b7f9c52334442d22775668d8ad7fbe68c2d0118bc3f91"
-dependencies = [
- "proc-macro-hack",
- "vk-shader-macros-impl",
-]
-
-[[package]]
-name = "vk-shader-macros-impl"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5e6ec491f3dd862cc1bcd8900181693472c1e34bf4ec3d20fb9447f4d4ba5ba"
-dependencies = [
- "proc-macro-hack",
- "proc-macro2",
- "quote 1.0.9",
- "shaderc",
- "syn 1.0.72",
-]
 
 [[package]]
 name = "walkdir"

@@ -8,17 +8,11 @@ use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 use bytemuck_derive::*;
 use legion::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use std::borrow::Cow;
 
 /// Type for graphics computations.
 pub type GraphicsVector3 = nalgebra::Vector3<f32>;
 
 use anyhow::{anyhow, Result};
-
-use vk_shader_macros::include_glsl;
-
-static VERTEX_SHADER: &[u32] = include_glsl!("src/shaders/test.vert");
-static FRAGMENT_SHADER: &[u32] = include_glsl!("src/shaders/test.frag");
 
 const VERTICES: &[Vertex] = &[
     Vertex { position: GraphicsVector3::new(0.0, 0.5, 0.0), color: GraphicsVector3::new(1.0, 0.0, 0.0) },
@@ -53,7 +47,6 @@ pub struct Client {
     queue: wgpu::Queue,
     sc_desc: wgpu::SwapChainDescriptor,
     swap_chain: wgpu::SwapChain,
-    size: dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline, // TODO should that go into a vector of some sort?
     vertex_buffer: wgpu::Buffer,           // TODO this should definitely not be here, but it's here for the experiments.
 
@@ -116,24 +109,14 @@ impl Client {
             push_constant_ranges: &[],
         });
 
-        let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::SpirV(Cow::Borrowed(VERTEX_SHADER)),
-            flags: wgpu::ShaderFlags::all(),
-        });
-
-        let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::SpirV(Cow::Borrowed(FRAGMENT_SHADER)),
-            flags: wgpu::ShaderFlags::all(),
-        });
+        let shader_module = device.create_shader_module(&wgpu::include_spirv!(env!("gpu_code.spv")));
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &vs_module,
-                entry_point: "main",
+                module: &shader_module,
+                entry_point: "main_vs",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as u64,
                     step_mode: wgpu::InputStepMode::Vertex,
@@ -141,8 +124,8 @@ impl Client {
                 }],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &fs_module,
-                entry_point: "main",
+                module: &shader_module,
+                entry_point: "main_fs",
                 targets: &[swap_chain_format.into()],
             }),
             primitive: wgpu::PrimitiveState::default(),
@@ -162,19 +145,7 @@ impl Client {
 
         let worlds = Vec::new();
 
-        Ok(Client {
-            window,
-            surface,
-            device,
-            queue,
-            sc_desc,
-            swap_chain,
-            size,
-            render_pipeline,
-            vertex_buffer,
-            worlds,
-            thread_pool,
-        })
+        Ok(Client { window, surface, device, queue, sc_desc, swap_chain, render_pipeline, vertex_buffer, worlds, thread_pool })
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
@@ -210,7 +181,6 @@ impl Client {
     }
 
     fn on_resize(&mut self, new_size: dpi::PhysicalSize<u32>) {
-        self.size = new_size;
         self.sc_desc.width = new_size.width;
         self.sc_desc.height = new_size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
