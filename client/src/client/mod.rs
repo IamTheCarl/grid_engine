@@ -7,18 +7,18 @@ use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
 use legion::*;
-use rayon::{ThreadPool, ThreadPoolBuilder};
-
-/// Type for graphics computations.
-pub type GraphicsVector3 = nalgebra::Vector3<f32>;
 
 use anyhow::{anyhow, Result};
+
+use graphics::GraphicsVector3;
 
 const VERTICES: &[Vertex] = &[
     Vertex { position: GraphicsVector3::new(0.0, 0.5, 0.0), color: GraphicsVector3::new(1.0, 0.0, 0.0) },
     Vertex { position: GraphicsVector3::new(-0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 1.0, 0.0) },
     Vertex { position: GraphicsVector3::new(0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 0.0, 1.0) },
 ];
+
+mod graphics;
 
 use argh::FromArgs;
 
@@ -31,13 +31,7 @@ struct Vertex {
 
 #[derive(FromArgs)]
 /// Grid Locked, the Game, finally becoming a reality this time I swear.
-struct Arguments {
-    /// the number of processing threads used to drive the engine.
-    /// When unspecified or set to 0, will automatically determine the ideal
-    /// number of threads to use on your system.
-    #[argh(option, default = "0")]
-    num_threads: usize,
-}
+struct Arguments {}
 
 pub struct Client {
     // General graphics stuff.
@@ -51,7 +45,6 @@ pub struct Client {
     vertex_buffer: wgpu::Buffer,           // TODO this should definitely not be here, but it's here for the experiments.
 
     // World simulation stuff.
-    thread_pool: ThreadPool,
     worlds: Vec<(World, Schedule, Resources, legion::systems::CommandBuffer)>,
 }
 
@@ -140,12 +133,11 @@ impl Client {
         });
 
         // Grab arguments provided from the command line.
-        let arguments: Arguments = argh::from_env();
-        let thread_pool = ThreadPoolBuilder::new().num_threads(arguments.num_threads).build()?;
+        let _arguments: Arguments = argh::from_env();
 
         let worlds = Vec::new();
 
-        Ok(Client { window, surface, device, queue, sc_desc, swap_chain, render_pipeline, vertex_buffer, worlds, thread_pool })
+        Ok(Client { window, surface, device, queue, sc_desc, swap_chain, render_pipeline, vertex_buffer, worlds })
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
@@ -188,7 +180,8 @@ impl Client {
 
     fn on_frame(&mut self) {
         for (world, schedule, resources, _command_buffer) in &mut self.worlds {
-            schedule.execute_in_thread_pool(world, resources, &self.thread_pool);
+            // Because parallel is enabled, this will use the global thread pool.
+            schedule.execute(world, resources);
         }
 
         let frame = self.swap_chain.get_current_frame();
