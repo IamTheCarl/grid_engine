@@ -114,13 +114,13 @@ pub struct LocalBlockRange {
 }
 
 /// An iterator for iterating over a range of blocks within a chunk.
-pub struct LocalBlockIterator<'chunk> {
+pub struct LocalBlockIterator<'chunk, ChunkUserData> {
     internal_iterator: Product<Product<Range<u8>, Range<u8>>, Range<u8>>,
     conversion_function: &'static dyn Fn(u8, u8, u8) -> LocalBlockCoordinate,
-    chunk: &'chunk Chunk,
+    chunk: &'chunk Chunk<ChunkUserData>,
 }
 
-impl<'chunk> Iterator for LocalBlockIterator<'chunk> {
+impl<'chunk, ChunkUserData> Iterator for LocalBlockIterator<'chunk, ChunkUserData> {
     type Item = Option<BlockID>;
     fn next(&mut self) -> Option<Option<BlockID>> {
         let next = self.internal_iterator.next();
@@ -140,13 +140,13 @@ impl<'chunk> Iterator for LocalBlockIterator<'chunk> {
 }
 
 /// An iterator for iterating over a range of blocks within a chunk that you can modify.
-pub struct LocalBlockIteratorMut<'chunk> {
+pub struct LocalBlockIteratorMut<'chunk, ChunkUserData> {
     internal_iterator: Product<Product<Range<u8>, Range<u8>>, Range<u8>>,
     conversion_function: &'static dyn Fn(u8, u8, u8) -> LocalBlockCoordinate,
-    chunk: &'chunk mut Chunk,
+    chunk: &'chunk mut Chunk<ChunkUserData>,
 }
 
-impl<'chunk> Iterator for LocalBlockIteratorMut<'chunk> {
+impl<'chunk, ChunkUserData> Iterator for LocalBlockIteratorMut<'chunk, ChunkUserData> {
     type Item = &'chunk mut Option<BlockID>;
     fn next(&mut self) -> Option<&'chunk mut Option<BlockID>> {
         let next = self.internal_iterator.next();
@@ -195,7 +195,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yxz<'chunk>(&self, chunk: &'chunk Chunk) -> LocalBlockIterator<'chunk> {
+    pub fn iter_yxz<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk Chunk<ChunkUserData>,
+    ) -> LocalBlockIterator<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIterator {
             internal_iterator: (near.y..far.y).cartesian_product(near.x..far.x).cartesian_product(near.z..far.z),
@@ -205,7 +207,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yzx<'chunk>(&self, chunk: &'chunk Chunk) -> LocalBlockIterator<'chunk> {
+    pub fn iter_yzx<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk Chunk<ChunkUserData>,
+    ) -> LocalBlockIterator<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIterator {
             internal_iterator: (near.y..far.y).cartesian_product(near.z..far.z).cartesian_product(near.x..far.x),
@@ -215,7 +219,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xyz<'chunk>(&self, chunk: &'chunk Chunk) -> LocalBlockIterator<'chunk> {
+    pub fn iter_xyz<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk Chunk<ChunkUserData>,
+    ) -> LocalBlockIterator<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIterator {
             internal_iterator: (near.x..far.x).cartesian_product(near.y..far.y).cartesian_product(near.z..far.z),
@@ -225,7 +231,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xzy<'chunk>(&self, chunk: &'chunk Chunk) -> LocalBlockIterator<'chunk> {
+    pub fn iter_xzy<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk Chunk<ChunkUserData>,
+    ) -> LocalBlockIterator<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIterator {
             internal_iterator: (near.x..far.x).cartesian_product(near.z..far.z).cartesian_product(near.y..far.y),
@@ -235,7 +243,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zxy<'chunk>(&self, chunk: &'chunk Chunk) -> LocalBlockIterator<'chunk> {
+    pub fn iter_zxy<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk Chunk<ChunkUserData>,
+    ) -> LocalBlockIterator<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIterator {
             internal_iterator: (near.z..far.z).cartesian_product(near.x..far.x).cartesian_product(near.y..far.y),
@@ -245,7 +255,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zyx<'chunk>(&self, chunk: &'chunk Chunk) -> LocalBlockIterator<'chunk> {
+    pub fn iter_zyx<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk Chunk<ChunkUserData>,
+    ) -> LocalBlockIterator<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIterator {
             internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),
@@ -255,7 +267,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yxz_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+    pub fn iter_yxz_mut<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk mut Chunk<ChunkUserData>,
+    ) -> LocalBlockIteratorMut<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIteratorMut {
             internal_iterator: (near.y..far.y).cartesian_product(near.x..far.x).cartesian_product(near.z..far.z),
@@ -265,7 +279,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yzx_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+    pub fn iter_yzx_mut<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk mut Chunk<ChunkUserData>,
+    ) -> LocalBlockIteratorMut<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIteratorMut {
             internal_iterator: (near.y..far.y).cartesian_product(near.z..far.z).cartesian_product(near.x..far.x),
@@ -275,7 +291,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xyz_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+    pub fn iter_xyz_mut<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk mut Chunk<ChunkUserData>,
+    ) -> LocalBlockIteratorMut<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIteratorMut {
             internal_iterator: (near.x..far.x).cartesian_product(near.y..far.y).cartesian_product(near.z..far.z),
@@ -285,7 +303,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xzy_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+    pub fn iter_xzy_mut<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk mut Chunk<ChunkUserData>,
+    ) -> LocalBlockIteratorMut<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIteratorMut {
             internal_iterator: (near.x..far.x).cartesian_product(near.z..far.z).cartesian_product(near.y..far.y),
@@ -295,7 +315,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zxy_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+    pub fn iter_zxy_mut<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk mut Chunk<ChunkUserData>,
+    ) -> LocalBlockIteratorMut<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIteratorMut {
             internal_iterator: (near.z..far.z).cartesian_product(near.x..far.x).cartesian_product(near.y..far.y),
@@ -305,7 +327,9 @@ impl LocalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zyx_mut<'chunk>(&self, chunk: &'chunk mut Chunk) -> LocalBlockIteratorMut<'chunk> {
+    pub fn iter_zyx_mut<'chunk, ChunkUserData>(
+        &self, chunk: &'chunk mut Chunk<ChunkUserData>,
+    ) -> LocalBlockIteratorMut<'chunk, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         LocalBlockIteratorMut {
             internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),
@@ -324,13 +348,13 @@ pub struct GlobalBlockRange {
 // TODO make versions of these iterators that force the terrain to load if needed.
 
 /// An iterator for iterating over a range of blocks.
-pub struct GlobalBlockIterator<'world> {
+pub struct GlobalBlockIterator<'world, ChunkUserData> {
     internal_iterator: Product<Product<Range<i64>, Range<i64>>, Range<i64>>,
     conversion_function: &'static dyn Fn(i64, i64, i64) -> GlobalBlockCoordinate,
-    world: &'world GridWorld,
+    world: &'world GridWorld<ChunkUserData>,
 }
 
-impl<'world> Iterator for GlobalBlockIterator<'world> {
+impl<'world, ChunkUserData: Default> Iterator for GlobalBlockIterator<'world, ChunkUserData> {
     type Item = Option<BlockID>;
     fn next(&mut self) -> Option<Option<BlockID>> {
         let next = self.internal_iterator.next();
@@ -350,13 +374,13 @@ impl<'world> Iterator for GlobalBlockIterator<'world> {
 }
 
 /// An iterator for iterating over a range of blocks that you can modify.
-pub struct GlobalBlockIteratorMut<'world> {
+pub struct GlobalBlockIteratorMut<'world, ChunkUserData> {
     internal_iterator: Product<Product<Range<i64>, Range<i64>>, Range<i64>>,
     conversion_function: &'static dyn Fn(i64, i64, i64) -> GlobalBlockCoordinate,
-    world: &'world mut GridWorld,
+    world: &'world mut GridWorld<ChunkUserData>,
 }
 
-impl<'chunk> Iterator for GlobalBlockIteratorMut<'chunk> {
+impl<'chunk, ChunkUserData: Default> Iterator for GlobalBlockIteratorMut<'chunk, ChunkUserData> {
     type Item = &'chunk mut Option<BlockID>;
     fn next(&mut self) -> Option<&'chunk mut Option<BlockID>> {
         let next = self.internal_iterator.next();
@@ -393,7 +417,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yxz<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+    pub fn iter_yxz<'world, ChunkUserData>(
+        &self, world: &'world GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIterator<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIterator {
             internal_iterator: (near.y..far.y).cartesian_product(near.x..far.x).cartesian_product(near.z..far.z),
@@ -403,7 +429,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yzx<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+    pub fn iter_yzx<'world, ChunkUserData>(
+        &self, world: &'world GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIterator<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIterator {
             internal_iterator: (near.y..far.y).cartesian_product(near.z..far.z).cartesian_product(near.x..far.x),
@@ -413,7 +441,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xyz<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+    pub fn iter_xyz<'world, ChunkUserData>(
+        &self, world: &'world GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIterator<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIterator {
             internal_iterator: (near.x..far.x).cartesian_product(near.y..far.y).cartesian_product(near.z..far.z),
@@ -423,7 +453,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xzy<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+    pub fn iter_xzy<'world, ChunkUserData>(
+        &self, world: &'world GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIterator<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIterator {
             internal_iterator: (near.x..far.x).cartesian_product(near.z..far.z).cartesian_product(near.y..far.y),
@@ -433,7 +465,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zxy<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+    pub fn iter_zxy<'world, ChunkUserData>(
+        &self, world: &'world GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIterator<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIterator {
             internal_iterator: (near.z..far.z).cartesian_product(near.x..far.x).cartesian_product(near.y..far.y),
@@ -443,7 +477,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zyx<'world>(&self, world: &'world GridWorld) -> GlobalBlockIterator<'world> {
+    pub fn iter_zyx<'world, ChunkUserData>(
+        &self, world: &'world GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIterator<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIterator {
             internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),
@@ -453,7 +489,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yxz_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+    pub fn iter_yxz_mut<'world, ChunkUserData>(
+        &self, world: &'world mut GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIteratorMut<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIteratorMut {
             internal_iterator: (near.y..far.y).cartesian_product(near.x..far.x).cartesian_product(near.z..far.z),
@@ -463,7 +501,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_yzx_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+    pub fn iter_yzx_mut<'world, ChunkUserData>(
+        &self, world: &'world mut GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIteratorMut<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIteratorMut {
             internal_iterator: (near.y..far.y).cartesian_product(near.z..far.z).cartesian_product(near.x..far.x),
@@ -473,7 +513,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xyz_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+    pub fn iter_xyz_mut<'world, ChunkUserData>(
+        &self, world: &'world mut GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIteratorMut<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIteratorMut {
             internal_iterator: (near.x..far.x).cartesian_product(near.y..far.y).cartesian_product(near.z..far.z),
@@ -483,7 +525,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_xzy_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+    pub fn iter_xzy_mut<'world, ChunkUserData>(
+        &self, world: &'world mut GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIteratorMut<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIteratorMut {
             internal_iterator: (near.x..far.x).cartesian_product(near.z..far.z).cartesian_product(near.y..far.y),
@@ -493,7 +537,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zxy_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+    pub fn iter_zxy_mut<'world, ChunkUserData>(
+        &self, world: &'world mut GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIteratorMut<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIteratorMut {
             internal_iterator: (near.z..far.z).cartesian_product(near.x..far.x).cartesian_product(near.y..far.y),
@@ -503,7 +549,9 @@ impl GlobalBlockRange {
     }
 
     /// Get an iterator that iterates over the chunks in a cartesian manner.
-    pub fn iter_zyx_mut<'world>(&self, world: &'world mut GridWorld) -> GlobalBlockIteratorMut<'world> {
+    pub fn iter_zyx_mut<'world, ChunkUserData>(
+        &self, world: &'world mut GridWorld<ChunkUserData>,
+    ) -> GlobalBlockIteratorMut<'world, ChunkUserData> {
         let (near, far) = self.get_near_and_far();
         GlobalBlockIteratorMut {
             internal_iterator: (near.z..far.z).cartesian_product(near.y..far.y).cartesian_product(near.x..far.x),

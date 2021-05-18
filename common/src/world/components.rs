@@ -51,7 +51,7 @@ mod test {
         let abstract_flat_world = chunk_providers::AbstractFlatWorld::new();
         chunk_provider.add_generator(abstract_flat_world);
 
-        let mut world = GridWorld::new(chunk_provider);
+        let mut world: GridWorld<()> = GridWorld::new(chunk_provider);
 
         let components = (RigidBody::new(world.ecs_resources_mut(), RigidBodyBuilder::new_dynamic().build()), ());
         world.ecs_world_mut().push(components);
@@ -68,7 +68,7 @@ mod test {
         let abstract_flat_world = chunk_providers::AbstractFlatWorld::new();
         chunk_provider.add_generator(abstract_flat_world);
 
-        let mut world = GridWorld::new(chunk_provider);
+        let mut world: GridWorld<()> = GridWorld::new(chunk_provider);
 
         let rigid_body = RigidBody::new(world.ecs_resources_mut(), RigidBodyBuilder::new_dynamic().build());
         rigid_body.add_collider(ColliderBuilder::ball(0.5f32).build(), world.ecs_resources_mut());

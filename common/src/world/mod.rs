@@ -31,7 +31,7 @@ pub use chunk::*;
 // const TERRAIN_FOLDER: &str = "terrain";
 
 /// An object that provides terrain chunks with their block content.
-pub trait ChunkProvider {
+pub trait ChunkProvider<ChunkUserData> {
     /// Access the block registry.
     fn block_registry(&self) -> &BlockRegistry;
 
@@ -40,17 +40,17 @@ pub trait ChunkProvider {
 
     /// When a chunk is created, it needs to be filled with blocks. An empty chunk will be provided
     /// to this method, and this method is to fill it with blocks.
-    fn provide_chunk(&self, chunk: &mut Chunk);
+    fn provide_chunk(&self, chunk: &mut Chunk<ChunkUserData>);
 }
 
 /// A world full of terrain and entities.
-pub struct GridWorld {
+pub struct GridWorld<ChunkUserData> {
     time: WorldTime,
-    terrain_chunks: HashMap<ChunkCoordinate, Chunk>,
+    terrain_chunks: HashMap<ChunkCoordinate, Chunk<ChunkUserData>>,
     ecs_world: World,
     ecs_schedule: Schedule,
     ecs_resources: Resources,
-    chunk_provider: Box<dyn ChunkProvider>,
+    chunk_provider: Box<dyn ChunkProvider<ChunkUserData>>,
 }
 
 /// Global constants in the physics engine that we can't just loosely toss into the ECS resources.
@@ -59,9 +59,9 @@ pub struct PhysicsGlobalConstants {
     integration_parameters: IntegrationParameters,
 }
 
-impl GridWorld {
+impl<ChunkUserData: Default> GridWorld<ChunkUserData> {
     /// Create a new world.
-    pub fn new(chunk_provider: Box<dyn ChunkProvider>) -> GridWorld {
+    pub fn new(chunk_provider: Box<dyn ChunkProvider<ChunkUserData>>) -> GridWorld<ChunkUserData> {
         let terrain_chunks = HashMap::new();
         let time = WorldTime::from_ms(0);
 
@@ -142,22 +142,22 @@ impl GridWorld {
 
     /// Get a chunk from its index.
     #[inline]
-    pub fn get_chunk(&self, index: &ChunkCoordinate) -> Option<&Chunk> {
+    pub fn get_chunk(&self, index: &ChunkCoordinate) -> Option<&Chunk<ChunkUserData>> {
         self.terrain_chunks.get(index)
     }
 
     /// Get a chunk from its index.
     #[inline]
-    pub fn get_chunk_mut(&mut self, index: &ChunkCoordinate) -> Option<&mut Chunk> {
+    pub fn get_chunk_mut(&mut self, index: &ChunkCoordinate) -> Option<&mut Chunk<ChunkUserData>> {
         self.terrain_chunks.get_mut(index)
     }
 
     /// Get a chunk. If it doesn't exist, it will be loaded or generated. In other words, you're guaranteed to always get a chunk.
     #[inline]
-    pub fn load_chunk(&mut self, index: ChunkCoordinate) -> &mut Chunk {
+    pub fn load_chunk(&mut self, index: ChunkCoordinate) -> &mut Chunk<ChunkUserData> {
         let chunk_provider = &mut self.chunk_provider;
         self.terrain_chunks.entry(index).or_insert_with(|| {
-            let mut chunk = Chunk::new(index);
+            let mut chunk = Chunk::new(index, ChunkUserData::default());
             chunk_provider.provide_chunk(&mut chunk);
 
             chunk
@@ -211,7 +211,7 @@ mod test {
         let abstract_flat_world = chunk_providers::AbstractFlatWorld::new();
         chunk_provider.add_generator(abstract_flat_world);
 
-        let _world = GridWorld::new(chunk_provider);
+        let _world: GridWorld<()> = GridWorld::new(chunk_provider);
     }
 
     /// Generate some chunks.
@@ -223,7 +223,7 @@ mod test {
         let abstract_flat_world = chunk_providers::AbstractFlatWorld::new();
         chunk_provider.add_generator(abstract_flat_world);
 
-        let mut world = GridWorld::new(chunk_provider);
+        let mut world: GridWorld<()> = GridWorld::new(chunk_provider);
 
         let abstract_block_id = world.block_registry().get_block_id_from_name("abstract_block").cloned();
         assert!(abstract_block_id.is_some());
@@ -231,14 +231,14 @@ mod test {
         // Being at level 0, it should be filled with abstract blocks.
         let chunk = world.load_chunk(ChunkCoordinate::new(0, 0, 0));
 
-        for block in chunk.iter_ideal(Chunk::range_all_blocks()) {
+        for block in chunk.iter_ideal(Chunk::<()>::range_all_blocks()) {
             assert_eq!(block, abstract_block_id);
         }
 
         // Being at level 1, it should be empty.
         let chunk = world.load_chunk(ChunkCoordinate::new(0, 1, 0));
 
-        for block in chunk.iter_ideal(Chunk::range_all_blocks()) {
+        for block in chunk.iter_ideal(Chunk::<()>::range_all_blocks()) {
             assert_eq!(block, None);
         }
     }

@@ -21,14 +21,15 @@ pub enum ChunkError {
 pub type ChunkResult<O> = std::result::Result<O, ChunkError>;
 
 /// A chunk of the world's terrain.
-pub struct Chunk {
+pub struct Chunk<UserData> {
     storage: Box<storage::ChunkData>,
+    user_data: UserData,
 }
 
-impl Chunk {
+impl<UserData> Chunk<UserData> {
     /// Create a new, blank chunk.
-    pub fn new(location: ChunkCoordinate) -> Chunk {
-        Chunk { storage: storage::ChunkData::create(location) }
+    pub fn new(location: ChunkCoordinate, user_data: UserData) -> Chunk<UserData> {
+        Chunk { storage: storage::ChunkData::create(location), user_data }
     }
 
     /// Get the index of the chunk.
@@ -88,7 +89,7 @@ impl Chunk {
     /// The order in which blocks are iterated is subject to change at random, and may even be different each time you
     /// call this function.
     #[inline]
-    pub fn iter_ideal(&self, range: LocalBlockRange) -> LocalBlockIterator {
+    pub fn iter_ideal(&self, range: LocalBlockRange) -> LocalBlockIterator<UserData> {
         range.iter_xyz(self)
     }
 
@@ -96,7 +97,7 @@ impl Chunk {
     /// The order in which blocks are iterated is subject to change at random, and may even be different each time you
     /// call this function.
     #[inline]
-    pub fn iter_ideal_mut(&mut self, range: LocalBlockRange) -> LocalBlockIteratorMut {
+    pub fn iter_ideal_mut(&mut self, range: LocalBlockRange) -> LocalBlockIteratorMut<UserData> {
         range.iter_xyz_mut(self)
     }
 
@@ -112,5 +113,17 @@ impl Chunk {
                 storage::CHUNK_DIAMETER as u8,
             ),
         )
+    }
+
+    /// Get a reference to the user data associated with this chunk.
+    #[inline]
+    pub fn user_data(&self) -> &UserData {
+        &self.user_data
+    }
+
+    /// Get a mutable reference to the user data associated with this chunk.
+    #[inline]
+    pub fn user_data_mut(&mut self) -> &mut UserData {
+        &mut self.user_data
     }
 }
