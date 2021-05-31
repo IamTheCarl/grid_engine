@@ -4,6 +4,7 @@
 //! Components that can be used within the ECS.
 
 use legion::Resources;
+use nalgebra::Isometry3;
 use rapier3d::{
     dynamics::{RigidBodyHandle, RigidBodySet},
     geometry::{Collider, ColliderHandle, ColliderSet},

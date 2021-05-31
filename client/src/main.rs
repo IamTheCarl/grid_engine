@@ -13,8 +13,6 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 mod client;
 use client::Client;
 
-// mod local_users;
-
 fn main() {
     let result = trampoline();
 

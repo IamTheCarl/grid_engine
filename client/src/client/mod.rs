@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
-use legion::*;
+use legion::{world::Entry, Entity, Resources, Schedule, World};
 
 use anyhow::{anyhow, Result};
 
@@ -18,6 +18,7 @@ const VERTICES: &[Vertex] = &[
     Vertex { position: GraphicsVector3::new(0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 0.0, 1.0) },
 ];
 
+mod ecs;
 mod graphics;
 
 use argh::FromArgs;
@@ -150,6 +151,7 @@ impl Client {
                     }
                     _ => None,
                 },
+                // WindowEvent::MouseInput { device_id, state, button, .. } => None,
                 WindowEvent::Resized(new_size) => {
                     self.on_resize(*new_size);
                     None
@@ -170,6 +172,17 @@ impl Client {
         };
 
         control_flow
+    }
+
+    fn process_input_on_entity(world: &mut World, entity: Entity, input_handler: &dyn Fn(&mut Entry)) -> bool {
+        if let Some(mut entry) = world.entry(entity) {
+            // TODO right now I'm just going to dumbly pass movement events to the entity as they are on a PC.
+            // In the future we need to generalize them more.
+            input_handler(&mut entry);
+            true
+        } else {
+            false
+        }
     }
 
     fn on_resize(&mut self, new_size: dpi::PhysicalSize<u32>) {
