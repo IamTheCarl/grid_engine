@@ -20,14 +20,14 @@ platform-dirs = "0.3"
 rand = "0.8"
 rsa = "0.4"
 wgpu = "0.8"
-winit = "0.25"
+winit = "0.24" # The crate egui_winit_platform drives what version of winit we use.
 bytemuck = "1.5"
 nalgebra = { version = "0.26", features = ["serde-serialize", "bytemuck"] }
 bytemuck_derive = "1.0"
 
-# We *might* use egui. I'm not set on it yet. Iced is also a valid option.
 egui = "0.12"
 egui_wgpu_backend = "0.8"
+egui_winit_platform = "0.7"
 
 [build-dependencies]
 spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", rev = "943f09fef7b7ac305432d0bc899b54716c1e765b" }

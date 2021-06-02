@@ -2,11 +2,12 @@
 // AGPL-3.0-or-later
 
 use futures::executor::block_on;
+use std::time::Instant;
 use wgpu::util::DeviceExt;
 use winit::{dpi, event::*, event_loop::ControlFlow, window::Window};
 
 use bytemuck_derive::*;
-use legion::{world::Entry, Entity, Resources, Schedule, World};
+use legion::{Resources, Schedule, World};
 
 use anyhow::{anyhow, Result};
 
@@ -17,6 +18,8 @@ const VERTICES: &[Vertex] = &[
     Vertex { position: GraphicsVector3::new(-0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 1.0, 0.0) },
     Vertex { position: GraphicsVector3::new(0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 0.0, 1.0) },
 ];
+
+const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 mod ecs;
 mod graphics;
@@ -44,6 +47,13 @@ pub struct Client {
     swap_chain: wgpu::SwapChain,
     render_pipeline: wgpu::RenderPipeline, // TODO should that go into a vector of some sort?
     vertex_buffer: wgpu::Buffer,           // TODO this should definitely not be here, but it's here for the experiments.
+
+    // GUI related stuff.
+    gui_render_pass: egui_wgpu_backend::RenderPass,
+    gui_platform: egui_winit_platform::Platform,
+
+    // The time our application started.
+    time_init: Instant,
 
     // World simulation stuff.
     worlds: Vec<(World, Schedule, Resources, legion::systems::CommandBuffer)>,
@@ -88,7 +98,7 @@ impl Client {
         // Swap chain basically manages our double buffer.
         let sc_desc = wgpu::SwapChainDescriptor {
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            format: TEXTURE_FORMAT,
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Mailbox, // TODO let the user pick
@@ -133,15 +143,44 @@ impl Client {
             usage: wgpu::BufferUsage::VERTEX,
         });
 
+        // EGUI rendering stuff.
+        let gui_render_pass = egui_wgpu_backend::RenderPass::new(&device, TEXTURE_FORMAT);
+
+        // We use the egui_winit_platform crate as the platform.
+        let gui_platform = egui_winit_platform::Platform::new(egui_winit_platform::PlatformDescriptor {
+            physical_width: window.inner_size().width, // The platform processes all events, so it updates its own size when that happens.
+            physical_height: window.inner_size().height,
+            scale_factor: window.scale_factor(),
+            font_definitions: egui::FontDefinitions::default(),
+            style: Default::default(),
+        });
+
+        let time_init = Instant::now();
+
         // Grab arguments provided from the command line.
         let _arguments: Arguments = argh::from_env();
 
         let worlds = Vec::new();
 
-        Ok(Client { window, surface, device, queue, sc_desc, swap_chain, render_pipeline, vertex_buffer, worlds })
+        Ok(Client {
+            window,
+            surface,
+            device,
+            queue,
+            sc_desc,
+            swap_chain,
+            render_pipeline,
+            vertex_buffer,
+            gui_render_pass,
+            gui_platform,
+            time_init,
+            worlds,
+        })
     }
 
     pub fn process_event<T>(&mut self, event: &winit::event::Event<T>) -> Option<ControlFlow> {
+        self.gui_platform.handle_event(event);
+
         let control_flow = match event {
             Event::WindowEvent { ref event, window_id } if *window_id == self.window.id() => match event {
                 WindowEvent::CloseRequested => Some(ControlFlow::Exit),
@@ -174,17 +213,6 @@ impl Client {
         control_flow
     }
 
-    fn process_input_on_entity(world: &mut World, entity: Entity, input_handler: &dyn Fn(&mut Entry)) -> bool {
-        if let Some(mut entry) = world.entry(entity) {
-            // TODO right now I'm just going to dumbly pass movement events to the entity as they are on a PC.
-            // In the future we need to generalize them more.
-            input_handler(&mut entry);
-            true
-        } else {
-            false
-        }
-    }
-
     fn on_resize(&mut self, new_size: dpi::PhysicalSize<u32>) {
         self.sc_desc.width = new_size.width;
         self.sc_desc.height = new_size.height;
@@ -192,6 +220,9 @@ impl Client {
     }
 
     fn on_frame(&mut self) {
+        // Update the GUI animations.
+        self.gui_platform.update_time(self.time_init.elapsed().as_secs_f64());
+
         for (world, schedule, resources, _command_buffer) in &mut self.worlds {
             // Because parallel is enabled, this will use the global thread pool.
             schedule.execute(world, resources);
@@ -201,6 +232,7 @@ impl Client {
 
         match frame {
             Ok(frame) => {
+                let frame_size = self.window.inner_size();
                 let frame = frame.output;
                 let mut encoder =
                     self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
@@ -219,6 +251,38 @@ impl Client {
                     render_pass.set_pipeline(&self.render_pipeline);
                     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                     render_pass.draw(0..VERTICES.len() as u32, 0..1);
+                }
+
+                // Render GUI.
+                {
+                    let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
+                        physical_width: frame_size.width,
+                        physical_height: frame_size.height,
+                        scale_factor: self.window.scale_factor() as f32,
+                    };
+
+                    self.gui_platform.begin_frame();
+                    {
+                        egui::CentralPanel::default().show(&self.gui_platform.context(), |ui| {
+                            ui.label("Hello world!");
+                            if ui.button("Click me").clicked() {
+                                log::info!("Click!");
+                            }
+                        });
+                    }
+                    let (_output, paint_commands) = self.gui_platform.end_frame();
+                    let paint_jobs = self.gui_platform.context().tessellate(paint_commands);
+
+                    self.gui_render_pass.update_texture(&self.device, &self.queue, &self.gui_platform.context().texture());
+                    self.gui_render_pass.update_user_textures(&self.device, &self.queue);
+                    self.gui_render_pass.update_buffers(&mut self.device, &mut self.queue, &paint_jobs, &screen_descriptor);
+                    self.gui_render_pass.execute(
+                        &mut encoder,
+                        &frame.view,
+                        &paint_jobs,
+                        &screen_descriptor,
+                        Some(wgpu::Color::BLACK),
+                    );
                 }
 
                 self.queue.submit(std::iter::once(encoder.finish()));
