@@ -10,6 +10,7 @@ use bytemuck_derive::*;
 use legion::{Resources, Schedule, World};
 
 use anyhow::{anyhow, Result};
+use argh::FromArgs;
 
 use graphics::GraphicsVector3;
 
@@ -19,12 +20,30 @@ const VERTICES: &[Vertex] = &[
     Vertex { position: GraphicsVector3::new(0.5, -0.5, 0.0), color: GraphicsVector3::new(0.0, 0.0, 1.0) },
 ];
 
+// This needs to be exposed to the parent module.
+pub use input::InputKey;
+const CONTROL_NAMES: &[&str] = &[
+    "move forward",
+    "move back",
+    "move left",
+    "move right",
+    "jump",
+    "crouch",
+    "sprint",
+    "look up",
+    "look down",
+    "look left",
+    "look right",
+    "pause",
+];
+
 const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 mod ecs;
 mod graphics;
+mod input;
 
-use argh::FromArgs;
+use input::ControlManager;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Zeroable, Pod)]
@@ -37,9 +56,9 @@ struct Vertex {
 /// Grid Locked, the Game, finally becoming a reality this time I swear.
 struct Arguments {}
 
-pub struct Client {
+pub struct Client<ControlInput: input::InputKey> {
     // General graphics stuff.
-    window: Window,
+    window: Window, // TODO Winit is platform specific. Move this and its associated code to the main file.
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -57,9 +76,12 @@ pub struct Client {
 
     // World simulation stuff.
     worlds: Vec<(World, Schedule, Resources, legion::systems::CommandBuffer)>,
+
+    // Input handling stuff.
+    control_manager: ControlManager<ControlInput>,
 }
 
-impl Client {
+impl<ControlInput: input::InputKey> Client<ControlInput> {
     async fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue), wgpu::RequestDeviceError> {
         adapter
             .request_device(
@@ -78,7 +100,7 @@ impl Client {
             .await
     }
 
-    pub fn create_with_window(window: Window) -> Result<Client> {
+    pub fn create_with_window(window: Window) -> Result<Client<ControlInput>> {
         let size = window.inner_size();
 
         // The instance is a handle to the graphics driver.
@@ -162,6 +184,9 @@ impl Client {
 
         let worlds = Vec::new();
 
+        // Manage controls.
+        let control_manager = ControlManager::build_control_manager(CONTROL_NAMES);
+
         Ok(Client {
             window,
             surface,
@@ -175,6 +200,7 @@ impl Client {
             gui_platform,
             time_init,
             worlds,
+            control_manager,
         })
     }
 
@@ -291,5 +317,9 @@ impl Client {
                 log::error!("Error getting render frame: {}", error);
             }
         }
+    }
+
+    pub fn update_input(&mut self, input_key: &ControlInput, delta: f32) {
+        self.control_manager.update_input(input_key, delta)
     }
 }

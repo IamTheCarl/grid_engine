@@ -8,7 +8,7 @@
 use native_dialog::{MessageDialog, MessageType};
 
 use anyhow::{Context, Result};
-use winit::{event_loop::EventLoop, window::WindowBuilder};
+use winit::{dpi, event::*, event_loop::ControlFlow, event_loop::EventLoop, window::Window, window::WindowBuilder};
 
 mod client;
 use client::Client;
@@ -33,6 +33,17 @@ fn main() {
     }
 }
 
+/// Used to identify controls on the PC (this main body is for PC only)
+#[derive(std::cmp::PartialEq, std::cmp::Eq, std::hash::Hash)]
+enum ControlInput {
+    KeyboardInput(winit::event::ScanCode),
+    MouseMoveX,
+    MouseMoveY,
+    MouseWheel,
+}
+
+impl client::InputKey for ControlInput {}
+
 /// A function that generally catches errors from the client setup so that they
 /// can be properly handled and displayed to the user.
 fn trampoline() -> Result<()> {
@@ -45,9 +56,23 @@ fn trampoline() -> Result<()> {
 
     // These are the only two things that can fail.
     let window = WindowBuilder::new().build(&event_loop).context("Error creating window.")?;
-    let mut client = Client::create_with_window(window).context("Error setting up graphics system.")?;
+    let our_window_id = window.id();
+    let mut client: Client<ControlInput> = Client::create_with_window(window).context("Error setting up graphics system.")?;
 
     event_loop.run(move |event, _, control_flow| {
+        match event {
+            Event::WindowEvent { ref event, window_id } if window_id == our_window_id => match event {
+                WindowEvent::KeyboardInput { input, .. } => match input {
+                    KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
+                        // TODO this should be passed as a special event.
+                    }
+                    _ => {}
+                },
+                WindowEvent::MouseInput { device_id, state, button, .. } => {}
+                _ => {}
+            },
+            _ => {}
+        }
         let new_flow = client.process_event(&event);
         if let Some(new_flow) = new_flow {
             *control_flow = new_flow;
