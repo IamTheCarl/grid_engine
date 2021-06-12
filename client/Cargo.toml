@@ -15,7 +15,7 @@ bytemuck_derive = "1.0"
 common = { path = "../common" }
 egui = "0.12"
 egui_wgpu_backend = "0.8"
-egui_winit_platform = "0.7"
+egui_winit_platform = "0.8"
 env_logger = "0.8"
 futures = "0.3"
 legion = "0.4"
@@ -29,7 +29,7 @@ ron = "0.6"
 rsa = "0.4"
 serde = "1.0"
 wgpu = "0.8"
-winit = { version = "0.24", features = ["serde"] } # The crate egui_winit_platform drives what version of winit we use.
+winit = { version = "0.25", features = ["serde"] }
 
 [build-dependencies]
 spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", tag = "v0.4.0-alpha.9" }
