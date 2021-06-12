@@ -32,4 +32,4 @@ wgpu = "0.8"
 winit = { version = "0.24", features = ["serde"] } # The crate egui_winit_platform drives what version of winit we use.
 
 [build-dependencies]
-spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", rev = "v0.4.0-alpha.9" }
+spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", tag = "v0.4.0-alpha.9" }

@@ -3247,7 +3247,7 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 [[package]]
 name = "rustc_codegen_spirv"
 version = "0.4.0-alpha.9"
-source = "git+https://github.com/EmbarkStudios/rust-gpu.git?rev=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
+source = "git+https://github.com/EmbarkStudios/rust-gpu.git?tag=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
 dependencies = [
  "bimap",
  "hashbrown 0.9.1",
@@ -3633,7 +3633,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 [[package]]
 name = "spirv-builder"
 version = "0.4.0-alpha.9"
-source = "git+https://github.com/EmbarkStudios/rust-gpu.git?rev=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
+source = "git+https://github.com/EmbarkStudios/rust-gpu.git?tag=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
 dependencies = [
  "memchr",
  "raw-string",
@@ -3645,7 +3645,7 @@ dependencies = [
 [[package]]
 name = "spirv-std"
 version = "0.4.0-alpha.9"
-source = "git+https://github.com/EmbarkStudios/rust-gpu.git?rev=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
+source = "git+https://github.com/EmbarkStudios/rust-gpu.git?tag=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
 dependencies = [
  "bitflags",
  "glam",
@@ -3657,7 +3657,7 @@ dependencies = [
 [[package]]
 name = "spirv-std-macros"
 version = "0.4.0-alpha.9"
-source = "git+https://github.com/EmbarkStudios/rust-gpu.git?rev=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
+source = "git+https://github.com/EmbarkStudios/rust-gpu.git?tag=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
 dependencies = [
  "heck",
  "proc-macro2 1.0.27",
@@ -3687,7 +3687,7 @@ dependencies = [
 [[package]]
 name = "spirv-types"
 version = "0.4.0-alpha.9"
-source = "git+https://github.com/EmbarkStudios/rust-gpu.git?rev=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
+source = "git+https://github.com/EmbarkStudios/rust-gpu.git?tag=v0.4.0-alpha.9#31bfc338e01c340f9ba3f18b294098a8e529e20c"
 
 [[package]]
 name = "spirv_cross"
