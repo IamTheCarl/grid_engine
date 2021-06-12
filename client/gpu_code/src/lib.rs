@@ -4,7 +4,7 @@
 #[cfg(not(target_arch = "spirv"))]
 use spirv_std::macros::spirv;
 
-use glam::{Vec3, Vec4};
+use spirv_std::glam::{Vec3, Vec4};
 
 #[spirv(vertex)]
 pub fn main_vs(a_position: Vec3, a_color: Vec3, v_color: &mut Vec3, #[spirv(position, invariant)] out_pos: &mut Vec4) {

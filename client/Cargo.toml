@@ -6,6 +6,7 @@ edition = "2018"
 license = "AGPL"
 
 [dependencies]
+amethyst_input = "0.15"
 anyhow = "1.0"
 argh = "0.1"
 base64 = "0.13"
@@ -28,7 +29,7 @@ ron = "0.6"
 rsa = "0.4"
 serde = "1.0"
 wgpu = "0.8"
-winit = "0.24" # The crate egui_winit_platform drives what version of winit we use.
+winit = { version = "0.24", features = ["serde"] } # The crate egui_winit_platform drives what version of winit we use.
 
 [build-dependencies]
-spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", rev = "943f09fef7b7ac305432d0bc899b54716c1e765b" }
+spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", rev = "v0.4.0-alpha.9" }

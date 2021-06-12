@@ -56,7 +56,7 @@ struct Vertex {
 /// Grid Locked, the Game, finally becoming a reality this time I swear.
 struct Arguments {}
 
-pub struct Client<ControlInput: input::InputKey> {
+pub struct Client {
     // General graphics stuff.
     window: Window, // TODO Winit is platform specific. Move this and its associated code to the main file.
     surface: wgpu::Surface,
@@ -78,10 +78,10 @@ pub struct Client<ControlInput: input::InputKey> {
     worlds: Vec<(World, Schedule, Resources, legion::systems::CommandBuffer)>,
 
     // Input handling stuff.
-    control_manager: ControlManager<ControlInput>,
+    control_manager: ControlManager,
 }
 
-impl<ControlInput: input::InputKey> Client<ControlInput> {
+impl Client {
     async fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue), wgpu::RequestDeviceError> {
         adapter
             .request_device(
@@ -100,7 +100,7 @@ impl<ControlInput: input::InputKey> Client<ControlInput> {
             .await
     }
 
-    pub fn create_with_window(window: Window) -> Result<Client<ControlInput>> {
+    pub fn create_with_window(window: Window) -> Result<Client> {
         let size = window.inner_size();
 
         // The instance is a handle to the graphics driver.
@@ -214,9 +214,9 @@ impl<ControlInput: input::InputKey> Client<ControlInput> {
                     KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => {
                         Some(ControlFlow::Exit)
                     }
-                    _ => None,
+                    _ => None, // self.control_manager.update_input(input_key, delta)
                 },
-                // WindowEvent::MouseInput { device_id, state, button, .. } => None,
+                // WindowEvent::MouseInput { device_id, state, button, .. } => self.control_manager.update_input(input_key, delta),
                 WindowEvent::Resized(new_size) => {
                     self.on_resize(*new_size);
                     None
@@ -317,9 +317,5 @@ impl<ControlInput: input::InputKey> Client<ControlInput> {
                 log::error!("Error getting render frame: {}", error);
             }
         }
-    }
-
-    pub fn update_input(&mut self, input_key: &ControlInput, delta: f32) {
-        self.control_manager.update_input(input_key, delta)
     }
 }
