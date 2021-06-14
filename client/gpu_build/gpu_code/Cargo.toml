@@ -3,6 +3,9 @@ name = "gpu_code"
 version = "0.1.0"
 edition = "2018"
 
+[workspace]
+# This project is its own workspace, not part of the parent workspace.
+
 [lib]
 crate-type = ["dylib"]
 

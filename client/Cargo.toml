@@ -6,7 +6,6 @@ edition = "2018"
 license = "AGPL"
 
 [dependencies]
-amethyst_input = "0.15"
 anyhow = "1.0"
 argh = "0.1"
 base64 = "0.13"
@@ -30,6 +29,3 @@ rsa = "0.4"
 serde = "1.0"
 wgpu = "0.8"
 winit = { version = "0.25", features = ["serde"] }
-
-[build-dependencies]
-spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", tag = "v0.4.0-alpha.9" }

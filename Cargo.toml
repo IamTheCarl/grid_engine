@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "client", "client/gpu_code", "server"]
+members = ["common", "client", "server"]
 
 # Release build uses every possible optimization.
 [profile.release]

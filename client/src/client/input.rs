@@ -5,7 +5,7 @@
 
 use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use winit::event::{KeyboardInput, MouseButton};
 
 /// An ID used to quickly reference a control once it is past the physical representation.
@@ -24,11 +24,20 @@ pub enum InputKey {
     ScrollY,
 }
 
+#[derive(Serialize, Deserialize)]
+struct BooleanControlBinding {
+    value: bool,
+    scale: f32,
+    controls: HashSet<ControlID>,
+}
+
 /// Structure for managing and mapping input configuration.
 #[derive(Serialize, Deserialize)]
 pub struct ControlManager {
     names_to_ids: HashMap<String, ControlID>,
-    input_map: HashMap<InputKey, ControlID>,
+    keyboard_inputs: HashMap<KeyboardInput, BooleanControlBinding>,
+    mouse_x_input: (f32, HashSet<ControlID>),
+    mouse_y_input: (f32, HashSet<ControlID>),
 
     #[serde(skip)]
     input_state: Vec<f32>,
@@ -36,46 +45,47 @@ pub struct ControlManager {
 
 impl ControlManager {
     pub fn build_control_manager(controls: &[&str]) -> ControlManager {
-        let mut names_to_ids = HashMap::new();
-        let input_map = HashMap::new();
-        let input_state = vec![0f32; controls.len()];
+        // let mut names_to_ids = HashMap::new();
+        // let input_map = HashMap::new();
+        // let input_state = vec![0f32; controls.len()];
 
-        for name in controls {
-            let id = names_to_ids.len() + 1;
-            names_to_ids.insert(String::from(*name), ControlID::new(id).expect("Error generating control ID"));
-        }
+        // for name in controls {
+        //     let id = names_to_ids.len() + 1;
+        //     names_to_ids.insert(String::from(*name), ControlID::new(id).expect("Error generating control ID"));
+        // }
 
-        ControlManager { names_to_ids, input_map, input_state }
+        // ControlManager { names_to_ids, input_map, input_state }
+        unimplemented!()
     }
 
-    pub fn get_control_id(&self, control_name: &str) -> Option<ControlID> {
-        self.names_to_ids.get(control_name).cloned()
-    }
+    // pub fn get_control_id(&self, control_name: &str) -> Option<ControlID> {
+    //     self.names_to_ids.get(control_name).cloned()
+    // }
 
-    pub fn set_key_binding(&mut self, input_key: InputKey, control_id: ControlID) {
-        self.input_map.insert(input_key, control_id);
-    }
+    // pub fn set_key_binding(&mut self, input_key: InputKey, control_id: ControlID) {
+    //     self.input_map.insert(input_key, control_id);
+    // }
 
-    pub fn update_input(&mut self, input_key: &InputKey, delta: f32) {
-        if let Some(control_id) = self.input_map.get(input_key) {
-            // This input actually has a control binding.
-            self.input_state[control_id.get() - 1] = delta;
-        }
-    }
+    // pub fn update_input(&mut self, input_key: &InputKey, delta: f32) {
+    //     if let Some(control_id) = self.input_map.get(input_key) {
+    //         // This input actually has a control binding.
+    //         self.input_state[control_id.get() - 1] = delta;
+    //     }
+    // }
 
-    pub fn get_boolean_control(&self, control_id: ControlID) -> bool {
-        if let Some(state) = self.input_state.get(control_id.get() - 1) {
-            return *state >= 1.0f32;
-        } else {
-            return false;
-        }
-    }
+    // pub fn get_boolean_control(&self, control_id: ControlID) -> bool {
+    //     if let Some(state) = self.input_state.get(control_id.get() - 1) {
+    //         return *state >= 1.0f32;
+    //     } else {
+    //         return false;
+    //     }
+    // }
 
-    pub fn get_analog_control(&self, control_id: ControlID) -> f32 {
-        if let Some(state) = self.input_state.get(control_id.get() - 1) {
-            return *state;
-        } else {
-            return 0.0f32;
-        }
-    }
+    // pub fn get_analog_control(&self, control_id: ControlID) -> f32 {
+    //     if let Some(state) = self.input_state.get(control_id.get() - 1) {
+    //         return *state;
+    //     } else {
+    //         return 0.0f32;
+    //     }
+    // }
 }

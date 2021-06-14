@@ -1,0 +1,10 @@
+[package]
+name = "gpu_build"
+version = "0.1.0"
+edition = "2018"
+
+[workspace]
+# This project is its own workspace, not part of the parent workspace.
+
+[dependencies]
+spirv-builder = { git = "https://github.com/EmbarkStudios/rust-gpu.git", tag = "v0.4.0-alpha.9" }
